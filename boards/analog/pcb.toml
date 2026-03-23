@@ -1,0 +1,6 @@
+[board]
+name = "analog"
+path = "analog.zen"
+
+[dependencies]
+"github.com/user/8chdsp/components/Texas_Instruments/OPA2134UA" = "0.1.0"

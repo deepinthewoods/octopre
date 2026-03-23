@@ -1,0 +1,59 @@
+"""
+OPA2134UA — Dual Low-Noise Audio Op-Amp, SOIC-8
+
+Pin mapping for standard dual op-amp SOIC-8:
+  1: 1OUT   (Output A)
+  2: 1IN-   (Inverting input A)
+  3: 1IN+   (Non-inverting input A)
+  4: V-     (Negative supply / GND)
+  5: 2IN+   (Non-inverting input B)
+  6: 2IN-   (Inverting input B)
+  7: 2OUT   (Output B)
+  8: V+     (Positive supply)
+"""
+
+mpn = config("mpn", str, optional=True, default="OPA2134UA")
+manufacturer = config("manufacturer", str, optional=True, default="Texas Instruments")
+
+# IO ports — power
+VP = io("VP", Net)
+VN = io("VN", Net)
+
+# IO ports — op-amp A
+OUT_A = io("OUT_A", Net)
+INP_A = io("INP_A", Net)
+INN_A = io("INN_A", Net)
+
+# IO ports — op-amp B
+OUT_B = io("OUT_B", Net)
+INP_B = io("INP_B", Net)
+INN_B = io("INN_B", Net)
+
+Component(
+    name="OPA2134UA",
+    part=Part(mpn=mpn, manufacturer=manufacturer),
+    symbol=Symbol(library="@kicad-symbols/Amplifier_Operational.kicad_sym", name="OPA2134"),
+    footprint=File("OPA2134UA.kicad_mod"),
+    prefix="U",
+    pin_defs={
+        "OUT_A": "1",
+        "INN_A": "2",
+        "INP_A": "3",
+        "VN": "4",
+        "INP_B": "5",
+        "INN_B": "6",
+        "OUT_B": "7",
+        "VP": "8",
+    },
+    pins={
+        "OUT_A": OUT_A,
+        "INN_A": INN_A,
+        "INP_A": INP_A,
+        "VN": VN,
+        "INP_B": INP_B,
+        "INN_B": INN_B,
+        "OUT_B": OUT_B,
+        "VP": VP,
+    },
+    properties={},
+)

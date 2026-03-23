@@ -1,0 +1,37 @@
+"""
+USBLC6-2SC6
+
+Auto-generated using `pcb search`.
+"""
+
+mpn = config("mpn", str, optional=True, default="USBLC6-2SC6")
+manufacturer = config("manufacturer", str, optional=True, default="STMicroelectronics")
+alternatives = config("alternatives", list, default=[])
+
+Pins = struct(
+    GND=io("GND", Net),
+    I_O1_1=io("I_O1_1", Net),
+    I_O1_2=io("I_O1_2", Net),
+    I_O2_1=io("I_O2_1", Net),
+    I_O2_2=io("I_O2_2", Net),
+    VBUS=io("VBUS", Net),
+)
+
+Component(
+    name="USBLC6-2SC6",
+    mpn=mpn,
+    manufacturer=manufacturer,
+    symbol=Symbol(library="USBLC6-2SC6.kicad_sym"),
+    footprint=File("USBLC6-2SC6.kicad_mod"),
+    pins={
+        "GND": Pins.GND,
+        "I/O1_1": Pins.I_O1_1,
+        "I/O1_2": Pins.I_O1_2,
+        "I/O2_1": Pins.I_O2_1,
+        "I/O2_2": Pins.I_O2_2,
+        "VBUS": Pins.VBUS,
+    },
+    properties={
+        "alternatives": alternatives,
+    },
+)

@@ -1,0 +1,52 @@
+"""
+TPS62130RGTR
+
+Auto-generated using `pcb search`.
+"""
+
+mpn = config("mpn", str, optional=True, default="TPS62130RGTR")
+manufacturer = config("manufacturer", str, optional=True, default="Texas Instruments")
+alternatives = config("alternatives", list, default=[])
+
+Pins = struct(
+    AGND=io("AGND", Net),
+    AVIN=io("AVIN", Net),
+    DEF=io("DEF", Net),
+    EN=io("EN", Net),
+    EP=io("EP", Net),
+    FB=io("FB", Net),
+    FSW=io("FSW", Net),
+    PG=io("PG", Net),
+    PGND=io("PGND", Net),
+    PVIN=io("PVIN", Net),
+    SS_TR=io("SS_TR", Net),
+    SW=io("SW", Net),
+    VOS=io("VOS", Net),
+)
+
+Component(
+    name="TPS62130RGTR",
+    mpn=mpn,
+    manufacturer=manufacturer,
+    datasheet=File("TPS62130RGTR.pdf"),
+    symbol=Symbol(library="TPS62130RGTR.kicad_sym"),
+    footprint=File("TPS62130RGTR.kicad_mod"),
+    pins={
+        "AGND": Pins.AGND,
+        "AVIN": Pins.AVIN,
+        "DEF": Pins.DEF,
+        "EN": Pins.EN,
+        "EP": Pins.EP,
+        "FB": Pins.FB,
+        "FSW": Pins.FSW,
+        "PG": Pins.PG,
+        "PGND": Pins.PGND,
+        "PVIN": Pins.PVIN,
+        "SS/TR": Pins.SS_TR,
+        "SW": Pins.SW,
+        "VOS": Pins.VOS,
+    },
+    properties={
+        "alternatives": alternatives,
+    },
+)

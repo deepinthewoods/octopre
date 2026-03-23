@@ -1,0 +1,744 @@
+"""
+Digital Board — 8-Channel Audio DSP System
+
+5x ESP32-S3 (1 master + 4 slave)
+5x ES8388 audio codecs
+BQ25798 battery charger
+TPS62130 buck converter (3V3_DIG)
+LP5907 LDO (3V3_ANA)
+74HC4052 UART mux
+USB-C interface with ESD protection
+TDM audio bus
+"""
+
+load("@stdlib/units.zen", "Voltage", "Resistance", "Capacitance", "Impedance")
+
+# =============================================================================
+# Generic component modules
+# =============================================================================
+
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+FerriteBead = Module("@stdlib/generics/FerriteBead.zen")
+Led = Module("@stdlib/generics/Led.zen")
+TestPoint = Module("@stdlib/generics/TestPoint.zen")
+PinHeader = Module("@stdlib/generics/PinHeader.zen")
+Diode = Module("@stdlib/generics/Diode.zen")
+
+# =============================================================================
+# Specific component modules
+# =============================================================================
+
+ESP32_Master = Module("../../components/Espressif_Systems/ESP32-S3-WROOM-1-N16R8/ESP32-S3-WROOM-1-N16R8.zen")
+ESP32_Slave = Module("../../components/Espressif_Systems/ESP32-S3-WROOM-1U-N16R8/ESP32-S3-WROOM-1U-N16R8.zen")
+ES8388_Codec = Module("../../components/Everest-semi_Everest_Semiconductor/ES8388/ES8388.zen")
+BQ25798 = Module("../../components/Texas_Instruments/BQ25798RQMR/BQ25798RQMR.zen")
+HC4052 = Module("../../components/Toshiba/74HC4052D/74HC4052D.zen")
+LP5907 = Module("../../components/Texas_Instruments/LP5907A33YKMR/LP5907A33YKMR.zen")
+TPS62130 = Module("../../components/Texas_Instruments/TPS62130RGTR/TPS62130RGTR.zen")
+USB_C = Module("../../components/GCT/USB4105-GF-A/USB4105-GF-A.zen")
+USBLC6 = Module("../../components/STMicroelectronics/USBLC6-2SC6/USBLC6-2SC6.zen")
+
+# =============================================================================
+# Power nets
+# =============================================================================
+
+vbat = Power("VBAT", voltage=Voltage("7.4V"))
+v3v3_dig = Power("3V3_DIG", voltage=Voltage("3.3V"))
+v3v3_ana = Power("3V3_ANA", voltage=Voltage("3.3V"))
+v5_usb = Power("5V_USB", voltage=Voltage("5V"))
+gnd = Ground("GND")
+
+# =============================================================================
+# Signal nets — TDM bus
+# =============================================================================
+
+tdm_bclk = Net("TDM_BCLK")
+tdm_lrclk = Net("TDM_LRCLK")
+tdm_mclk = Net("TDM_MCLK")
+tdm_data = [Net("TDM_DATA_" + str(i)) for i in range(1, 5)]
+
+# TDM bus after series resistors (at master output)
+tdm_bclk_src = Net("TDM_BCLK_SRC")
+tdm_lrclk_src = Net("TDM_LRCLK_SRC")
+
+# =============================================================================
+# Signal nets — I2C bus
+# =============================================================================
+
+i2c_sda = Net("I2C_SDA")
+i2c_scl = Net("I2C_SCL")
+
+# =============================================================================
+# Signal nets — UART / programming
+# =============================================================================
+
+usb_dp = Net("USB_DP")
+usb_dm = Net("USB_DM")
+usb_cc1 = Net("USB_CC1")
+usb_cc2 = Net("USB_CC2")
+
+uart_mux_tx = Net("UART_MUX_TX")
+uart_mux_rx = Net("UART_MUX_RX")
+mux_a = Net("MUX_A")
+mux_b = Net("MUX_B")
+
+slave_tx = [Net("SLAVE_TX_" + str(i)) for i in range(1, 5)]
+slave_rx = [Net("SLAVE_RX_" + str(i)) for i in range(1, 5)]
+slave_gpio0 = [Net("SLAVE_GPIO0_" + str(i)) for i in range(1, 5)]
+slave_en = [Net("SLAVE_EN_" + str(i)) for i in range(1, 5)]
+
+# =============================================================================
+# Signal nets — ES8388 I2S per codec
+# =============================================================================
+
+es_sdin = [Net("ES_SDIN_" + str(i)) for i in range(1, 6)]
+es_sdout = [Net("ES_SDOUT_" + str(i)) for i in range(1, 6)]
+
+# =============================================================================
+# Signal nets — analog audio (to interconnect header)
+# =============================================================================
+
+# ES8388 analog inputs from analog board (via header)
+es_lin1 = [Net("ES_LIN1_" + str(i)) for i in range(1, 6)]
+es_rin1 = [Net("ES_RIN1_" + str(i)) for i in range(1, 6)]
+
+# ES8388 master headphone and line outputs (to analog board via header)
+hp_l = Net("HP_L")
+hp_r = Net("HP_R")
+line_l = Net("LINE_L")
+line_r = Net("LINE_R")
+
+# =============================================================================
+# Internal nets
+# =============================================================================
+
+bq_sys = Net("BQ_SYS")
+bq_stat = Net("BQ_STAT")
+bq_int = Net("BQ_INT")
+bq_pmid = Net("BQ_PMID")
+buck_sw = Net("BUCK_SW")
+buck_fb = Net("BUCK_FB")
+buck_en = Net("BUCK_EN")
+buck_pg = Net("BUCK_PG")
+buck_ss = Net("BUCK_SS")
+ldo_en = Net("LDO_EN")
+v3v3_ana_pre_fb = Net("3V3_ANA_PRE_FB")  # before ferrite bead
+
+led_charge = Net("LED_CHARGE")
+led_power = Net("LED_POWER")
+led_user = Net("LED_USER")
+led_usr_k = Net("LED_USR_K")
+
+# BQ25798 internal nets
+bq_btst1 = Net("BQ_BTST1")
+bq_btst2 = Net("BQ_BTST2")
+bq_regn = Net("BQ_REGN")
+bq_prog = Net("BQ_PROG")
+bq_ilim = Net("BQ_ILIM")
+bq_ts = Net("BQ_TS")
+bq_acdrv1 = Net("BQ_ACDRV1")
+bq_sdrv = Net("BQ_SDRV")
+
+# ESP32 master EN net
+u1_en = Net("U1_EN")
+
+nc = NotConnected()
+
+# ES8388 reference nets
+es_vref = [Net("ES_VREF_" + str(i)) for i in range(5)]
+es_vmid = [Net("ES_VMID_" + str(i)) for i in range(5)]
+es_adcvref = [Net("ES_ADCVREF_" + str(i)) for i in range(5)]
+
+# =============================================================================
+# USB-C Connector
+# =============================================================================
+
+USB_C(
+    name="J_USB",
+    VBUS=v5_usb,
+    CC1=usb_cc1,
+    CC2=usb_cc2,
+    DP1=usb_dp,
+    DP2=usb_dp,
+    DN1=usb_dm,
+    DN2=usb_dm,
+    SBU1=nc,
+    SBU2=nc,
+    GND=gnd,
+    EH=gnd,
+)
+
+# USB CC pull-down resistors (5.1k for sink identification)
+# anchor: P1 near USB_C CC pin
+Resistor(name="R_CC1", value="5k1", package="0402", P1=usb_cc1, P2=gnd)
+Resistor(name="R_CC2", value="5k1", package="0402", P1=usb_cc2, P2=gnd)
+
+# USB ESD protection
+USBLC6(
+    name="U_ESD",
+    VBUS=v5_usb,
+    I_O1_1=usb_dp,
+    I_O1_2=usb_dp,
+    I_O2_1=usb_dm,
+    I_O2_2=usb_dm,
+    GND=gnd,
+)
+
+# =============================================================================
+# Battery Charger — BQ25798RQMR
+# =============================================================================
+
+BQ25798(
+    name="U_CHG",
+    VAC1=v5_usb,
+    VAC2=nc,
+    VBUS=v5_usb,
+    D_POS=usb_dp,
+    D_NEG=usb_dm,
+    PMID=bq_pmid,
+    BAT=vbat,
+    BATP=vbat,
+    SYS=bq_sys,
+    SW1=bq_pmid,
+    SW2=bq_pmid,
+    BTST1=bq_btst1,
+    BTST2=bq_btst2,
+    ACDRV1=bq_acdrv1,
+    ACDRV2=nc,
+    SDRV=bq_sdrv,
+    REGN=bq_regn,
+    PROG=bq_prog,
+    SDA=i2c_sda,
+    SCL=i2c_scl,
+    STAT=bq_stat,
+    N_INT=bq_int,
+    N_CE=v3v3_dig,  # charger always enabled
+    N_QON=v3v3_dig,  # ship mode disabled
+    ILIM_HIZ=bq_ilim,
+    TS=bq_ts,
+    GND=gnd,
+)
+
+# BQ25798 bootstrap caps
+# anchor: P1 near BQ25798 BTST pin
+Capacitor(name="C_BTST1", value="100nF", package="0402", P1=bq_btst1, P2=bq_pmid)
+Capacitor(name="C_BTST2", value="100nF", package="0402", P1=bq_btst2, P2=bq_pmid)
+
+# BQ25798 REGN cap
+# anchor: P1 near BQ25798 REGN pin
+Capacitor(name="C_REGN", value="1uF", package="0402", P1=bq_regn, P2=gnd)
+
+# BQ25798 PMID cap
+# anchor: P1 near BQ25798 PMID pin
+Capacitor(name="C_PMID", value="10uF", package="0805", P1=bq_pmid, P2=gnd)
+
+# BQ25798 battery input/output caps
+# anchor: P1 near BQ25798 BAT pin
+Capacitor(name="C_BAT1", value="10uF", package="0805", P1=vbat, P2=gnd)
+Capacitor(name="C_BAT2", value="10uF", package="0805", P1=vbat, P2=gnd)
+
+# BQ25798 SYS output cap
+# anchor: P1 near BQ25798 SYS pin
+Capacitor(name="C_SYS", value="10uF", package="0805", P1=bq_sys, P2=gnd)
+
+# BQ25798 VBUS input cap
+# anchor: P1 near USB connector VBUS
+Capacitor(name="C_VBUS", value="10uF", package="0805", P1=v5_usb, P2=gnd)
+
+# BQ25798 PROG resistor (sets charge current)
+# anchor: P1 near BQ25798 PROG pin
+Resistor(name="R_PROG", value="10k", package="0402", P1=bq_prog, P2=gnd)
+
+# BQ25798 ILIM_HIZ pull-up
+# anchor: P1 near BQ25798 ILIM_HIZ pin
+Resistor(name="R_ILIM", value="100k", package="0402", P1=bq_ilim, P2=v3v3_dig)
+
+# BQ25798 TS pull-down (disable temperature sensing)
+# anchor: between BQ25798 TS and GND
+Resistor(name="R_TS1", value="5k49", package="0402", P1=bq_ts, P2=gnd)
+Resistor(name="R_TS2", value="30k1", package="0402", P1=bq_ts, P2=v3v3_dig)
+
+# =============================================================================
+# Buck Converter — TPS62130 (VBAT → 3V3_DIG)
+# =============================================================================
+
+TPS62130(
+    name="U_BUCK",
+    PVIN=vbat,
+    AVIN=vbat,
+    EN=vbat,  # always enabled
+    SW=buck_sw,
+    FB=buck_fb,
+    VOS=v3v3_dig,
+    DEF=gnd,  # adjustable mode
+    PG=buck_pg,
+    SS_TR=buck_ss,
+    FSW=gnd,  # default frequency
+    PGND=gnd,
+    AGND=gnd,
+    EP=gnd,
+)
+
+# Buck inductor
+# anchor: P1 near TPS62130 SW pin, P2 near output
+buck_out = Net("BUCK_OUT")
+# Note: using a resistor as placeholder for inductor footprint — user to substitute proper inductor
+# TODO: add Inductor generic when available, 4.7uH
+
+# Buck feedback divider: VOUT = 0.8V * (1 + R_TOP/R_BOT)
+# For 3.3V: R_TOP = 100k, R_BOT = 32k (gives 3.3V)
+# anchor: P1 near TPS62130 FB pin
+Resistor(name="R_FB_TOP", value="100k", package="0402", P1=v3v3_dig, P2=buck_fb)
+Resistor(name="R_FB_BOT", value="32k", package="0402", P1=buck_fb, P2=gnd)
+
+# Buck input caps
+# anchor: P1 near TPS62130 PVIN pin
+Capacitor(name="C_BUCK_IN1", value="10uF", package="0805", P1=vbat, P2=gnd)
+Capacitor(name="C_BUCK_IN2", value="100nF", package="0402", P1=vbat, P2=gnd)
+
+# Buck output caps
+# anchor: P1 near TPS62130 VOS pin
+Capacitor(name="C_BUCK_OUT1", value="22uF", package="0805", P1=v3v3_dig, P2=gnd)
+Capacitor(name="C_BUCK_OUT2", value="22uF", package="0805", P1=v3v3_dig, P2=gnd)
+
+# Buck soft-start cap
+# anchor: P1 near TPS62130 SS/TR pin
+Capacitor(name="C_BUCK_SS", value="10nF", package="0402", P1=buck_ss, P2=gnd)
+
+# =============================================================================
+# Analog LDO — LP5907 (VBAT → 3V3_ANA)
+# =============================================================================
+
+LP5907(
+    name="U_LDO",
+    IN=vbat,
+    OUT=v3v3_ana_pre_fb,
+    EN=vbat,  # always enabled
+    GND=gnd,
+)
+
+# Ferrite bead between LDO output and 3V3_ANA pour
+# anchor: P1 near LP5907 OUT pin, P2 to analog rail
+FerriteBead(name="FB_ANA", value="600ohm", package="0603", P1=v3v3_ana_pre_fb, P2=v3v3_ana)
+
+# LDO input caps
+# anchor: P1 near LP5907 IN pin
+Capacitor(name="C_LDO_IN", value="1uF", package="0402", P1=vbat, P2=gnd)
+
+# LDO output caps
+# anchor: P1 near LP5907 OUT pin
+Capacitor(name="C_LDO_OUT1", value="1uF", package="0402", P1=v3v3_ana_pre_fb, P2=gnd)
+Capacitor(name="C_LDO_OUT2", value="100nF", package="0402", P1=v3v3_ana, P2=gnd)
+
+# LC filter on 3V3_ANA after ferrite bead
+# anchor: P1 near FB_ANA P2 side
+Capacitor(name="C_ANA_FILT", value="10uF", package="0805", P1=v3v3_ana, P2=gnd)
+
+# =============================================================================
+# ESP32-S3 Master (U1) — PCB antenna variant
+# =============================================================================
+
+ESP32_Master(
+    name="U1",
+    P3V3=v3v3_dig,
+    GND=gnd,
+    EN=u1_en,
+    # USB native — used for programming
+    IO19=usb_dm,   # USB D-
+    IO20=usb_dp,   # USB D+
+    # I2C bus
+    IO1=i2c_sda,
+    IO2=i2c_scl,
+    # I2S / TDM — master clocks
+    IO5=tdm_bclk_src,  # BCLK output (before series R)
+    IO6=tdm_lrclk_src, # LRCLK output (before series R)
+    IO7=tdm_mclk,      # MCLK output
+    # TDM data inputs (from slaves)
+    IO15=tdm_data[0],
+    IO16=tdm_data[1],
+    IO17=tdm_data[2],
+    IO18=tdm_data[3],
+    # I2S to master ES8388
+    IO8=es_sdin[0],   # SDIN to ES8388 master
+    IO9=es_sdout[0],  # SDOUT from ES8388 master
+    # UART mux control
+    IO10=uart_mux_tx,
+    IO11=uart_mux_rx,
+    IO12=mux_a,
+    IO13=mux_b,
+    # Slave GPIO0 control (boot mode)
+    IO35=slave_gpio0[0],
+    IO36=slave_gpio0[1],
+    IO37=slave_gpio0[2],
+    IO38=slave_gpio0[3],
+    # Slave EN/reset control
+    IO39=slave_en[0],
+    IO40=slave_en[1],
+    IO41=slave_en[2],
+    IO42=slave_en[3],
+    # Status LEDs
+    IO45=led_user,
+    IO46=bq_stat,  # read charger status
+    IO47=bq_int,   # read charger interrupt
+    IO48=led_charge,
+    # Unused pins
+    IO0=nc,
+    IO3=nc,
+    IO4=nc,
+    IO14=nc,
+    IO21=nc,
+    RXD0=nc,
+    TXD0=nc,
+)
+
+# Master EN pull-up + cap
+# anchor: P1 near U1 EN pin
+Resistor(name="R_U1_EN", value="10k", package="0402", P1=v3v3_dig, P2=u1_en)
+Capacitor(name="C_U1_EN", value="100nF", package="0402", P1=u1_en, P2=gnd)
+
+# Master bulk decoupling
+# anchor: P1 near U1 3V3 pin
+Capacitor(name="C_U1_BULK", value="10uF", package="0805", P1=v3v3_dig, P2=gnd)
+Capacitor(name="C_U1_DEC", value="100nF", package="0402", P1=v3v3_dig, P2=gnd)
+
+# TDM BCLK series resistor at master output
+# anchor: P1 near U1 BCLK pin, P2 to bus
+Resistor(name="R_BCLK", value="33", package="0402", P1=tdm_bclk_src, P2=tdm_bclk)
+
+# TDM LRCLK series resistor at master output
+# anchor: P1 near U1 LRCLK pin, P2 to bus
+Resistor(name="R_LRCLK", value="33", package="0402", P1=tdm_lrclk_src, P2=tdm_lrclk)
+
+# I2C pull-up resistors
+# anchor: P1 near 3V3_DIG, P2 to I2C bus
+Resistor(name="R_SDA", value="4k7", package="0402", P1=v3v3_dig, P2=i2c_sda)
+Resistor(name="R_SCL", value="4k7", package="0402", P1=v3v3_dig, P2=i2c_scl)
+
+# =============================================================================
+# ESP32-S3 Slaves (U2–U5) — U.FL antenna variant
+# =============================================================================
+
+for idx in range(4):
+    n = idx + 2  # U2..U5
+    slave_name = "U" + str(n)
+
+    # Each slave connects to one ES8388 and one TDM data line
+    ESP32_Slave(
+        name=slave_name,
+        P3V3=v3v3_dig,
+        GND=gnd,
+        EN=slave_en[idx],
+        # I2S to its ES8388
+        IO5=tdm_bclk,
+        IO6=tdm_lrclk,
+        IO7=tdm_mclk,
+        IO8=es_sdin[idx + 1],
+        IO9=es_sdout[idx + 1],
+        # TDM data output to master
+        IO15=tdm_data[idx],
+        # I2C
+        IO1=i2c_sda,
+        IO2=i2c_scl,
+        # Boot/programming
+        IO0=slave_gpio0[idx],
+        RXD0=slave_rx[idx],
+        TXD0=slave_tx[idx],
+        # Unused
+        IO3=nc,
+        IO4=nc,
+        IO10=nc,
+        IO11=nc,
+        IO12=nc,
+        IO13=nc,
+        IO14=nc,
+        IO16=nc,
+        IO17=nc,
+        IO18=nc,
+        IO19=nc,
+        IO20=nc,
+        IO21=nc,
+        IO35=nc,
+        IO36=nc,
+        IO37=nc,
+        IO38=nc,
+        IO39=nc,
+        IO40=nc,
+        IO41=nc,
+        IO42=nc,
+        IO45=nc,
+        IO46=nc,
+        IO47=nc,
+        IO48=nc,
+    )
+
+    # Slave EN pull-up + reset cap
+    # anchor: P1 near slave EN pin
+    Resistor(name="R_" + slave_name + "_EN", value="10k", package="0402",
+             P1=v3v3_dig, P2=slave_en[idx])
+    Capacitor(name="C_" + slave_name + "_EN", value="100nF", package="0402",
+              P1=slave_en[idx], P2=gnd)
+
+    # Slave bulk decoupling
+    # anchor: P1 near slave 3V3 pin
+    Capacitor(name="C_" + slave_name + "_BULK", value="10uF", package="0805",
+              P1=v3v3_dig, P2=gnd)
+    Capacitor(name="C_" + slave_name + "_DEC", value="100nF", package="0402",
+              P1=v3v3_dig, P2=gnd)
+
+# =============================================================================
+# UART Mux — 74HC4052D
+# =============================================================================
+
+HC4052(
+    name="U_MUX",
+    VCC=v3v3_dig,
+    GND=gnd,
+    VEE=gnd,
+    INH=gnd,  # mux always enabled
+    A=mux_a,
+    B=mux_b,
+    X_COM=uart_mux_tx,
+    Y_COM=uart_mux_rx,
+    P0X=slave_tx[0],
+    P0Y=slave_rx[0],
+    P1X=slave_tx[1],
+    P1Y=slave_rx[1],
+    P2X=slave_tx[2],
+    P2Y=slave_rx[2],
+    P3X=slave_tx[3],
+    P3Y=slave_rx[3],
+)
+
+# Mux decoupling
+# anchor: P1 near 74HC4052 VCC pin
+Capacitor(name="C_MUX", value="100nF", package="0402", P1=v3v3_dig, P2=gnd)
+
+# =============================================================================
+# ES8388 Codecs (U6–U10)
+# =============================================================================
+
+# ES8388 addr pins determine I2C address
+# CE low = 0x10, CE high = 0x11
+es_ce_nets = [gnd, v3v3_dig, gnd, v3v3_dig, gnd]  # alternate addresses
+
+for idx in range(5):
+    n = idx + 6  # U6..U10
+    codec_name = "U" + str(n)
+    is_master_codec = (idx == 0)
+
+    ES8388_Codec(
+        name=codec_name,
+        # Power
+        DVDD=v3v3_dig,
+        AVDD=v3v3_ana,
+        PVDD=v3v3_ana,
+        HPVDD=v3v3_ana if is_master_codec else nc,
+        DGND=gnd,
+        AGND=gnd,
+        HPGND=gnd if is_master_codec else nc,
+        EP=gnd,
+        # I2S
+        MCLK=tdm_mclk,
+        SCLK=tdm_bclk,
+        LRCK=tdm_lrclk,
+        DSDIN=es_sdin[idx],
+        ASDOUT=es_sdout[idx],
+        # I2C control
+        CCLK=i2c_scl,
+        CDATA=i2c_sda,
+        CE=es_ce_nets[idx],
+        # Analog inputs (from analog board via header)
+        LIN1=es_lin1[idx],
+        RIN1=es_rin1[idx],
+        LIN2=nc,  # second input pair unused
+        RIN2=nc,
+        # Analog outputs — only master codec has outputs
+        LOUT1=hp_l if is_master_codec else nc,
+        ROUT1=hp_r if is_master_codec else nc,
+        LOUT2=line_l if is_master_codec else nc,
+        ROUT2=line_r if is_master_codec else nc,
+        # Reference
+        VREF=es_vref[idx],
+        VMID=es_vmid[idx],
+        ADCVREF=es_adcvref[idx],
+        NC=nc,
+    )
+
+    # ES8388 power decoupling — 100nF on each power pin
+    # anchor: P1 near ES8388 DVDD pin
+    Capacitor(name="C_" + codec_name + "_DVDD", value="100nF", package="0402",
+              P1=v3v3_dig, P2=gnd)
+    # anchor: P1 near ES8388 AVDD pin
+    Capacitor(name="C_" + codec_name + "_AVDD", value="100nF", package="0402",
+              P1=v3v3_ana, P2=gnd)
+    # anchor: P1 near ES8388 PVDD pin
+    Capacitor(name="C_" + codec_name + "_PVDD", value="100nF", package="0402",
+              P1=v3v3_ana, P2=gnd)
+
+    # VREF decoupling
+    # anchor: P1 near ES8388 VREF pin
+    Capacitor(name="C_" + codec_name + "_VREF", value="10uF", package="0805",
+              P1=es_vref[idx], P2=gnd)
+    # VMID filter cap
+    # anchor: P1 near ES8388 VMID pin
+    Capacitor(name="C_" + codec_name + "_VMID", value="10uF", package="0805",
+              P1=es_vmid[idx], P2=gnd)
+
+    if is_master_codec:
+        # HPVDD decoupling for master codec
+        # anchor: P1 near ES8388 HPVDD pin
+        Capacitor(name="C_" + codec_name + "_HPVDD", value="100nF", package="0402",
+                  P1=v3v3_ana, P2=gnd)
+
+# =============================================================================
+# Status LEDs
+# =============================================================================
+
+# Charge status LED
+# anchor: between 3V3_DIG and ESP32 GPIO
+Resistor(name="R_LED_CHG", value="1k", package="0402", P1=v3v3_dig, P2=led_charge)
+Led(name="D_CHG", color="green", package="0603", A=led_charge, K=gnd)
+
+# Power good LED
+# anchor: between buck PG and GND
+Resistor(name="R_LED_PWR", value="1k", package="0402", P1=buck_pg, P2=led_power)
+Led(name="D_PWR", color="green", package="0603", A=led_power, K=gnd)
+
+# User LED
+# anchor: between ESP32 GPIO and GND
+Resistor(name="R_LED_USR", value="1k", package="0402", P1=led_user, P2=led_usr_k)
+Led(name="D_USR", color="blue", package="0603", A=led_usr_k, K=gnd)
+
+# =============================================================================
+# Test Points
+# =============================================================================
+
+TestPoint(name="TP_3V3D", variant="Pad_1.0x1.0mm", P1=v3v3_dig)
+TestPoint(name="TP_3V3A", variant="Pad_1.0x1.0mm", P1=v3v3_ana)
+TestPoint(name="TP_VBAT", variant="Pad_1.0x1.0mm", P1=vbat)
+TestPoint(name="TP_MCLK", variant="Pad_1.0x1.0mm", P1=tdm_mclk)
+TestPoint(name="TP_BCLK", variant="Pad_1.0x1.0mm", P1=tdm_bclk)
+TestPoint(name="TP_LRCLK", variant="Pad_1.0x1.0mm", P1=tdm_lrclk)
+TestPoint(name="TP_SDA", variant="Pad_1.0x1.0mm", P1=i2c_sda)
+TestPoint(name="TP_SCL", variant="Pad_1.0x1.0mm", P1=i2c_scl)
+TestPoint(name="TP_USBDP", variant="Pad_1.0x1.0mm", P1=usb_dp)
+TestPoint(name="TP_USBDM", variant="Pad_1.0x1.0mm", P1=usb_dm)
+
+for idx in range(4):
+    TestPoint(name="TP_DATA" + str(idx + 1), variant="Pad_1.0x1.0mm", P1=tdm_data[idx])
+
+# =============================================================================
+# Board Interconnect Header — 2x20 (40-pin) 2.54mm
+# =============================================================================
+
+# Pin assignment: analog signals at one end, digital at the other
+# Pins 1-8: GND (6 pins) + analog power
+# Pins 9-18: analog audio signals
+# Pins 19-30: more analog signals
+# Pins 31-40: digital signals (I2C, clocks) + digital power
+
+PinHeader(
+    name="J_CONN",
+    pins=20,
+    rows=2,
+    mount="THT",
+    pitch="2.54mm",
+    gender="Male",
+    # GND pins (6 total, spread across connector)
+    P1=gnd,
+    P2=gnd,
+    P3=gnd,
+    P4=v3v3_ana,   # analog power
+    P5=v3v3_ana,   # analog power (redundant for current)
+    P6=gnd,
+    # Analog audio — headphone output
+    P7=hp_l,
+    P8=hp_r,
+    # Analog audio — line output
+    P9=line_l,
+    P10=line_r,
+    # Analog audio — ES8388 inputs (5 stereo pairs = 10 pins)
+    P11=es_lin1[0],
+    P12=es_rin1[0],
+    P13=es_lin1[1],
+    P14=es_rin1[1],
+    P15=es_lin1[2],
+    P16=es_rin1[2],
+    P17=es_lin1[3],
+    P18=es_rin1[3],
+    P19=es_lin1[4],
+    P20=es_rin1[4],
+    # Remaining: I2C for ES8388 control + digital signals
+    P21=i2c_sda,
+    P22=i2c_scl,
+    P23=gnd,
+    P24=gnd,
+    # Digital power
+    P25=v3v3_dig,
+    P26=v3v3_dig,
+    # Spare / future
+    P27=nc,
+    P28=nc,
+    P29=nc,
+    P30=nc,
+    P31=nc,
+    P32=nc,
+    P33=nc,
+    P34=nc,
+    P35=nc,
+    P36=nc,
+    P37=nc,
+    P38=nc,
+    P39=nc,
+    P40=nc,
+)
+
+# Series resistors on digital signals crossing connector
+# anchor: between header and bus
+Resistor(name="R_CONN_SDA", value="33", package="0402", P1=i2c_sda, P2=Net("CONN_SDA"))
+Resistor(name="R_CONN_SCL", value="33", package="0402", P1=i2c_scl, P2=Net("CONN_SCL"))
+
+# =============================================================================
+# Debug / JTAG Header
+# =============================================================================
+
+PinHeader(
+    name="J_DEBUG",
+    pins=3,
+    rows=2,
+    mount="THT",
+    pitch="2.54mm",
+    gender="Male",
+    P1=v3v3_dig,  # 3V3
+    P2=gnd,       # GND
+    P3=nc,        # TDI — connect as needed
+    P4=nc,        # TDO
+    P5=nc,        # TCK
+    P6=nc,        # TMS
+)
+
+# =============================================================================
+# Battery Connector — JST-PH 2-pin (using 2-pin header as proxy)
+# =============================================================================
+
+PinHeader(
+    name="J_BAT",
+    pins=2,
+    rows=1,
+    mount="THT",
+    pitch="2.54mm",
+    gender="Male",
+    P1=vbat,
+    P2=gnd,
+)
+
+# =============================================================================
+# Board Configuration
+# =============================================================================
+
+Board(
+    name="digital",
+    layout_path="layout",
+    layers=6,
+)

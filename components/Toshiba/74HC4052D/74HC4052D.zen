@@ -1,0 +1,57 @@
+"""
+74HC4052D
+
+Auto-generated using `pcb search`.
+"""
+
+mpn = config("mpn", str, optional=True, default="74HC4052D")
+manufacturer = config("manufacturer", str, optional=True, default="Toshiba")
+alternatives = config("alternatives", list, default=[])
+
+Pins = struct(
+    A=io("A", Net),
+    B=io("B", Net),
+    GND=io("GND", Net),
+    INH=io("INH", Net),
+    P0X=io("P0X", Net),
+    P0Y=io("P0Y", Net),
+    P1X=io("P1X", Net),
+    P1Y=io("P1Y", Net),
+    P2X=io("P2X", Net),
+    P2Y=io("P2Y", Net),
+    P3X=io("P3X", Net),
+    P3Y=io("P3Y", Net),
+    VCC=io("VCC", Net),
+    VEE=io("VEE", Net),
+    X_COM=io("X_COM", Net),
+    Y_COM=io("Y_COM", Net),
+)
+
+Component(
+    name="74HC4052D",
+    mpn=mpn,
+    manufacturer=manufacturer,
+    symbol=Symbol(library="74HC4052D.kicad_sym"),
+    footprint=File("74HC4052D.kicad_mod"),
+    pins={
+        "A": Pins.A,
+        "B": Pins.B,
+        "GND": Pins.GND,
+        "INH": Pins.INH,
+        "0X": Pins.P0X,
+        "0Y": Pins.P0Y,
+        "1X": Pins.P1X,
+        "1Y": Pins.P1Y,
+        "2X": Pins.P2X,
+        "2Y": Pins.P2Y,
+        "3X": Pins.P3X,
+        "3Y": Pins.P3Y,
+        "VCC": Pins.VCC,
+        "VEE": Pins.VEE,
+        "X-COM": Pins.X_COM,
+        "Y-COM": Pins.Y_COM,
+    },
+    properties={
+        "alternatives": alternatives,
+    },
+)

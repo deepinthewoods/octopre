@@ -1,0 +1,10 @@
+[workspace]
+repository = "github.com/user/8chdsp"
+pcb-version = "0.3"
+members = [
+    "components/*",
+    "modules/*",
+    "reference/*",
+    "boards/*",
+]
+vendor = ["github.com/diodeinc/registry/**"]

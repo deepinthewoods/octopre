@@ -1,0 +1,82 @@
+"""
+ES8388
+
+Auto-generated using `pcb search`.
+"""
+
+mpn = config("mpn", str, optional=True, default="ES8388")
+manufacturer = config("manufacturer", str, optional=True, default="Everest-semi(Everest Semiconductor)")
+alternatives = config("alternatives", list, default=[])
+
+Pins = struct(
+    ADCVREF=io("ADCVREF", Net),
+    AGND=io("AGND", Net),
+    ASDOUT=io("ASDOUT", Net),
+    AVDD=io("AVDD", Net),
+    CCLK=io("CCLK", Net),
+    CDATA=io("CDATA", Net),
+    CE=io("CE", Net),
+    DGND=io("DGND", Net),
+    DSDIN=io("DSDIN", Net),
+    DVDD=io("DVDD", Net),
+    EP=io("EP", Net),
+    HPGND=io("HPGND", Net),
+    HPVDD=io("HPVDD", Net),
+    LIN1=io("LIN1", Net),
+    LIN2=io("LIN2", Net),
+    LOUT1=io("LOUT1", Net),
+    LOUT2=io("LOUT2", Net),
+    LRCK=io("LRCK", Net),
+    MCLK=io("MCLK", Net),
+    NC=io("NC", Net),
+    PVDD=io("PVDD", Net),
+    RIN1=io("RIN1", Net),
+    RIN2=io("RIN2", Net),
+    ROUT1=io("ROUT1", Net),
+    ROUT2=io("ROUT2", Net),
+    SCLK=io("SCLK", Net),
+    VMID=io("VMID", Net),
+    VREF=io("VREF", Net),
+)
+
+Component(
+    name="ES8388",
+    mpn=mpn,
+    manufacturer=manufacturer,
+    datasheet=File("ES8388.pdf"),
+    symbol=Symbol(library="ES8388.kicad_sym"),
+    footprint=File("ES8388.kicad_mod"),
+    pins={
+        "ADCVREF": Pins.ADCVREF,
+        "AGND": Pins.AGND,
+        "ASDOUT": Pins.ASDOUT,
+        "AVDD": Pins.AVDD,
+        "CCLK": Pins.CCLK,
+        "CDATA": Pins.CDATA,
+        "CE": Pins.CE,
+        "DGND": Pins.DGND,
+        "DSDIN": Pins.DSDIN,
+        "DVDD": Pins.DVDD,
+        "EP": Pins.EP,
+        "HPGND": Pins.HPGND,
+        "HPVDD": Pins.HPVDD,
+        "LIN1": Pins.LIN1,
+        "LIN2": Pins.LIN2,
+        "LOUT1": Pins.LOUT1,
+        "LOUT2": Pins.LOUT2,
+        "LRCK": Pins.LRCK,
+        "MCLK": Pins.MCLK,
+        "NC": Pins.NC,
+        "PVDD": Pins.PVDD,
+        "RIN1": Pins.RIN1,
+        "RIN2": Pins.RIN2,
+        "ROUT1": Pins.ROUT1,
+        "ROUT2": Pins.ROUT2,
+        "SCLK": Pins.SCLK,
+        "VMID": Pins.VMID,
+        "VREF": Pins.VREF,
+    },
+    properties={
+        "alternatives": alternatives,
+    },
+)

@@ -1,0 +1,80 @@
+"""
+BQ25798RQMR
+
+Auto-generated using `pcb search`.
+"""
+
+mpn = config("mpn", str, optional=True, default="BQ25798RQMR")
+manufacturer = config("manufacturer", str, optional=True, default="Texas Instruments")
+alternatives = config("alternatives", list, default=[])
+
+Pins = struct(
+    ACDRV1=io("ACDRV1", Net),
+    ACDRV2=io("ACDRV2", Net),
+    BAT=io("BAT", Net),
+    BATP=io("BATP", Net),
+    BTST1=io("BTST1", Net),
+    BTST2=io("BTST2", Net),
+    D_NEG=io("D_NEG", Net),
+    D_POS=io("D_POS", Net),
+    GND=io("GND", Net),
+    ILIM_HIZ=io("ILIM_HIZ", Net),
+    N_CE=io("N_CE", Net),
+    N_INT=io("N_INT", Net),
+    N_QON=io("N_QON", Net),
+    PMID=io("PMID", Net),
+    PROG=io("PROG", Net),
+    REGN=io("REGN", Net),
+    SCL=io("SCL", Net),
+    SDA=io("SDA", Net),
+    SDRV=io("SDRV", Net),
+    STAT=io("STAT", Net),
+    SW1=io("SW1", Net),
+    SW2=io("SW2", Net),
+    SYS=io("SYS", Net),
+    TS=io("TS", Net),
+    VAC1=io("VAC1", Net),
+    VAC2=io("VAC2", Net),
+    VBUS=io("VBUS", Net),
+)
+
+Component(
+    name="BQ25798RQMR",
+    mpn=mpn,
+    manufacturer=manufacturer,
+    datasheet=File("BQ25798RQMR.pdf"),
+    symbol=Symbol(library="BQ25798RQMR.kicad_sym"),
+    footprint=File("BQ25798RQMR.kicad_mod"),
+    pins={
+        "ACDRV1": Pins.ACDRV1,
+        "ACDRV2": Pins.ACDRV2,
+        "BAT": Pins.BAT,
+        "BATP": Pins.BATP,
+        "BTST1": Pins.BTST1,
+        "BTST2": Pins.BTST2,
+        "D-": Pins.D_NEG,
+        "D+": Pins.D_POS,
+        "GND": Pins.GND,
+        "ILIM_HIZ": Pins.ILIM_HIZ,
+        "~{CE}": Pins.N_CE,
+        "~{INT}": Pins.N_INT,
+        "~{QON}": Pins.N_QON,
+        "PMID": Pins.PMID,
+        "PROG": Pins.PROG,
+        "REGN": Pins.REGN,
+        "SCL": Pins.SCL,
+        "SDA": Pins.SDA,
+        "SDRV": Pins.SDRV,
+        "STAT": Pins.STAT,
+        "SW1": Pins.SW1,
+        "SW2": Pins.SW2,
+        "SYS": Pins.SYS,
+        "TS": Pins.TS,
+        "VAC1": Pins.VAC1,
+        "VAC2": Pins.VAC2,
+        "VBUS": Pins.VBUS,
+    },
+    properties={
+        "alternatives": alternatives,
+    },
+)

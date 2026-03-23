@@ -1,0 +1,402 @@
+"""
+Analog Board — 8-Channel Audio DSP System
+
+8x input preamp channels (4x OPA2134UA dual op-amps)
+2x electret mic bias circuits (CH1 & CH2)
+Headphone output (from digital board ES8388)
+Line output buffer (1x OPA2134UA)
+Board interconnect header
+"""
+
+load("@stdlib/units.zen", "Voltage", "Resistance", "Capacitance")
+
+# =============================================================================
+# Generic component modules
+# =============================================================================
+
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+PinHeader = Module("@stdlib/generics/PinHeader.zen")
+Diode = Module("@stdlib/generics/Diode.zen")
+TestPoint = Module("@stdlib/generics/TestPoint.zen")
+
+# =============================================================================
+# Specific component modules
+# =============================================================================
+
+OPA2134 = Module("../../components/Texas_Instruments/OPA2134UA/OPA2134UA.zen")
+
+# =============================================================================
+# Power nets (received from digital board via header)
+# =============================================================================
+
+v3v3_ana = Power("3V3_ANA", voltage=Voltage("3.3V"))
+v3v3_dig = Power("3V3_DIG", voltage=Voltage("3.3V"))
+gnd = Ground("GND")
+
+nc = NotConnected()
+
+# Output pad nets
+hp_pad_l = Net("HP_PAD_L")
+hp_pad_r = Net("HP_PAD_R")
+line_pad_l = Net("LINE_PAD_L")
+line_pad_r = Net("LINE_PAD_R")
+
+# =============================================================================
+# Audio signal nets — to/from digital board via interconnect header
+# =============================================================================
+
+# ES8388 analog inputs (preamp outputs → digital board)
+es_lin1 = [Net("ES_LIN1_" + str(i)) for i in range(1, 6)]
+es_rin1 = [Net("ES_RIN1_" + str(i)) for i in range(1, 6)]
+
+# Headphone output (from digital board ES8388)
+hp_l = Net("HP_L")
+hp_r = Net("HP_R")
+
+# Line output (from digital board ES8388)
+line_l = Net("LINE_L")
+line_r = Net("LINE_R")
+
+# =============================================================================
+# Internal audio nets
+# =============================================================================
+
+# Raw input signals (before coupling caps)
+ch_in = [Net("CH_IN_" + str(i)) for i in range(1, 9)]
+
+# After input coupling cap, before preamp
+ch_ac = [Net("CH_AC_" + str(i)) for i in range(1, 9)]
+
+# Preamp outputs (after gain stage)
+ch_out = [Net("CH_OUT_" + str(i)) for i in range(1, 9)]
+
+# Op-amp feedback nets
+ch_fb = [Net("CH_FB_" + str(i)) for i in range(1, 9)]
+
+# Mic bias nodes (CH1 & CH2 only)
+mic_bias = [Net("MIC_BIAS_" + str(i)) for i in range(1, 3)]
+
+# Line output buffer internal nets
+line_buf_l = Net("LINE_BUF_L")
+line_buf_r = Net("LINE_BUF_R")
+
+# HP output after coupling caps
+hp_out_l = Net("HP_OUT_L")
+hp_out_r = Net("HP_OUT_R")
+
+# Line output after coupling caps
+line_out_l = Net("LINE_OUT_L")
+line_out_r = Net("LINE_OUT_R")
+
+# =============================================================================
+# Input Preamp Channels (8 channels, using 4x OPA2134UA)
+# =============================================================================
+
+# Each OPA2134UA handles 2 channels (dual op-amp)
+# Channel pairs: (1,2), (3,4), (5,6), (7,8)
+# Map to ES8388 inputs:
+#   CH1+CH2 → ES8388 U7 (slave 1): es_lin1[1], es_rin1[1]
+#   CH3+CH4 → ES8388 U8 (slave 2): es_lin1[2], es_rin1[2]
+#   CH5+CH6 → ES8388 U9 (slave 3): es_lin1[3], es_rin1[3]
+#   CH7+CH8 → ES8388 U10 (slave 4): es_lin1[4], es_rin1[4]
+
+# Map channels to ES8388 analog inputs
+# ch_out[0] → es_lin1[1] (CH1 = left of slave codec 1)
+# ch_out[1] → es_rin1[1] (CH2 = right of slave codec 1)
+# etc.
+ch_to_es = [
+    (1, 0),  # CH1 → es_lin1[1]
+    (1, 1),  # CH2 → es_rin1[1]
+    (2, 0),  # CH3 → es_lin1[2]
+    (2, 1),  # CH4 → es_rin1[2]
+    (3, 0),  # CH5 → es_lin1[3]
+    (3, 1),  # CH6 → es_rin1[3]
+    (4, 0),  # CH7 → es_lin1[4]
+    (4, 1),  # CH8 → es_rin1[4]
+]
+
+for pair_idx in range(4):
+    ch_a = pair_idx * 2      # 0, 2, 4, 6
+    ch_b = pair_idx * 2 + 1  # 1, 3, 5, 7
+    opamp_name = "U_PRE" + str(pair_idx + 1)
+
+    es_idx_a = ch_to_es[ch_a][0]
+    es_idx_b = ch_to_es[ch_b][0]
+    is_left_a = ch_to_es[ch_a][1] == 0
+    is_left_b = ch_to_es[ch_b][1] == 0
+
+    # Connect preamp output to the correct ES8388 input net
+    out_net_a = es_lin1[es_idx_a] if is_left_a else es_rin1[es_idx_a]
+    out_net_b = es_lin1[es_idx_b] if is_left_b else es_rin1[es_idx_b]
+
+    OPA2134(
+        name=opamp_name,
+        VP=v3v3_ana,
+        VN=gnd,
+        # Op-amp A — odd channel
+        INP_A=ch_ac[ch_a],
+        INN_A=ch_fb[ch_a],
+        OUT_A=ch_out[ch_a],
+        # Op-amp B — even channel
+        INP_B=ch_ac[ch_b],
+        INN_B=ch_fb[ch_b],
+        OUT_B=ch_out[ch_b],
+    )
+
+    # Op-amp power decoupling
+    # anchor: P1 near OPA2134 V+ pin
+    Capacitor(name="C_" + opamp_name + "_VCC", value="100nF", package="0402",
+              P1=v3v3_ana, P2=gnd)
+    Capacitor(name="C_" + opamp_name + "_BULK", value="10uF", package="0805",
+              P1=v3v3_ana, P2=gnd)
+
+    # Per-channel components (2 channels per op-amp)
+    for sub_idx, ch_idx in enumerate([ch_a, ch_b]):
+        ch_num = ch_idx + 1  # 1-based
+        prefix = "CH" + str(ch_num)
+
+        # Input coupling capacitor (10uF)
+        # anchor: P1 near input pad, P2 near op-amp input
+        Capacitor(name="C_" + prefix + "_IN", value="10uF", package="0805",
+                  P1=ch_in[ch_idx], P2=ch_ac[ch_idx])
+
+        # Input protection — Schottky clamp diodes to rails
+        # anchor: A near op-amp input
+        Diode(name="D_" + prefix + "_H", package="SOD-323", variant="Schottky",
+              A=ch_ac[ch_idx], K=v3v3_ana)
+        Diode(name="D_" + prefix + "_L", package="SOD-323", variant="Schottky",
+              K=ch_ac[ch_idx], A=gnd)
+
+        # Input bias resistor (100k to set impedance)
+        # anchor: P1 near op-amp non-inverting input
+        Resistor(name="R_" + prefix + "_BIAS", value="100k", package="0402",
+                 P1=ch_ac[ch_idx], P2=gnd)
+
+        # Gain network: non-inverting config
+        # Gain = 1 + R_FB/R_GND
+        # With 10k trim pot as R_FB and 1k R_GND: gain range 1 to 11 (~0 to +20dB)
+        # R_GND from inverting input to ground
+        Resistor(name="R_" + prefix + "_GND", value="1k", package="0402",
+                 P1=ch_fb[ch_idx], P2=gnd)
+
+        # Feedback resistor (trim pot placeholder — 10k fixed for now)
+        # The actual trim pot (Nidec ST-4EA) will be a separate component
+        # Feedback path: output → trim pot → inverting input
+        Resistor(name="R_" + prefix + "_FB", value="10k", package="0402",
+                 P1=ch_out[ch_idx], P2=ch_fb[ch_idx])
+
+        # Output series resistor to ES8388 input
+        # anchor: between preamp output and ES8388 input
+        out_net = out_net_a if sub_idx == 0 else out_net_b
+        Resistor(name="R_" + prefix + "_OUT", value="100", package="0402",
+                 P1=ch_out[ch_idx], P2=out_net)
+
+# =============================================================================
+# Electret Microphone Bias — CH1 & CH2
+# =============================================================================
+
+for mic_idx in range(2):
+    ch_num = mic_idx + 1
+    prefix = "MIC" + str(ch_num)
+
+    # Bias resistor: 3V3_ANA → 2.2k → mic bias node
+    # anchor: P1 near 3V3_ANA, P2 near mic input
+    Resistor(name="R_" + prefix + "_BIAS", value="2k2", package="0402",
+             P1=v3v3_ana, P2=mic_bias[mic_idx])
+
+    # AC coupling cap from bias node to preamp input
+    # anchor: P1 near mic bias node, P2 near preamp input
+    Capacitor(name="C_" + prefix + "_AC", value="1uF", package="0402",
+              P1=mic_bias[mic_idx], P2=ch_ac[mic_idx])
+
+    # Mic bias bypass cap
+    # anchor: P1 near mic bias node
+    Capacitor(name="C_" + prefix + "_BYPASS", value="100nF", package="0402",
+              P1=mic_bias[mic_idx], P2=gnd)
+
+# =============================================================================
+# Headphone Output
+# =============================================================================
+
+# HP output coupling caps (220uF electrolytic — using 1206 placeholder)
+# anchor: P1 near header HP signal, P2 near output pad
+Capacitor(name="C_HP_L", value="220uF", package="1206", P1=hp_l, P2=hp_out_l)
+Capacitor(name="C_HP_R", value="220uF", package="1206", P1=hp_r, P2=hp_out_r)
+
+# HP output protection — PTC / polyfuse (using resistor as placeholder)
+# anchor: between coupling cap and output pad
+Resistor(name="R_HP_L_FUSE", value="1", package="0603", P1=hp_out_l, P2=hp_pad_l)
+Resistor(name="R_HP_R_FUSE", value="1", package="0603", P1=hp_out_r, P2=hp_pad_r)
+
+# =============================================================================
+# Line Output Buffer
+# =============================================================================
+
+# Unity-gain buffer using OPA2134UA (5th op-amp)
+OPA2134(
+    name="U_LINE",
+    VP=v3v3_ana,
+    VN=gnd,
+    # Left channel — unity gain (output tied to inverting input)
+    INP_A=line_l,
+    INN_A=line_buf_l,
+    OUT_A=line_buf_l,   # unity gain feedback
+    # Right channel — unity gain
+    INP_B=line_r,
+    INN_B=line_buf_r,
+    OUT_B=line_buf_r,   # unity gain feedback
+)
+
+# Line buffer power decoupling
+# anchor: P1 near U_LINE V+ pin
+Capacitor(name="C_LINE_VCC", value="100nF", package="0402", P1=v3v3_ana, P2=gnd)
+
+# Output series resistors (set ~600 ohm output impedance)
+# anchor: between buffer output and coupling cap
+Resistor(name="R_LINE_L", value="600", package="0402", P1=line_buf_l, P2=line_out_l)
+Resistor(name="R_LINE_R", value="600", package="0402", P1=line_buf_r, P2=line_out_r)
+
+# Output coupling caps (10uF)
+# anchor: P1 near series resistor, P2 near output pad
+Capacitor(name="C_LINE_L", value="10uF", package="0805", P1=line_out_l, P2=line_pad_l)
+Capacitor(name="C_LINE_R", value="10uF", package="0805", P1=line_out_r, P2=line_pad_r)
+
+# =============================================================================
+# Audio Input Pads — 2.54mm through-hole (8 channels)
+# =============================================================================
+
+for ch_idx in range(8):
+    ch_num = ch_idx + 1
+    PinHeader(
+        name="J_IN" + str(ch_num),
+        pins=2,
+        rows=1,
+        mount="THT",
+        pitch="2.54mm",
+        gender="Male",
+        P1=ch_in[ch_idx],
+        P2=gnd,
+    )
+
+# =============================================================================
+# Mic Input Pads — CH1 & CH2
+# =============================================================================
+
+PinHeader(
+    name="J_MIC1",
+    pins=2,
+    rows=1,
+    mount="THT",
+    pitch="2.54mm",
+    gender="Male",
+    P1=mic_bias[0],
+    P2=gnd,
+)
+
+PinHeader(
+    name="J_MIC2",
+    pins=2,
+    rows=1,
+    mount="THT",
+    pitch="2.54mm",
+    gender="Male",
+    P1=mic_bias[1],
+    P2=gnd,
+)
+
+# =============================================================================
+# Headphone Output Pads
+# =============================================================================
+
+PinHeader(
+    name="J_HP",
+    pins=3,
+    rows=1,
+    mount="THT",
+    pitch="2.54mm",
+    gender="Male",
+    P1=hp_pad_l,
+    P2=hp_pad_r,
+    P3=gnd,
+)
+
+# =============================================================================
+# Line Output Pads
+# =============================================================================
+
+PinHeader(
+    name="J_LINE",
+    pins=3,
+    rows=1,
+    mount="THT",
+    pitch="2.54mm",
+    gender="Male",
+    P1=line_pad_l,
+    P2=line_pad_r,
+    P3=gnd,
+)
+
+# =============================================================================
+# Board Interconnect Header — 2x20 (40-pin) 2.54mm (female, mates with digital board)
+# =============================================================================
+
+PinHeader(
+    name="J_CONN",
+    pins=20,
+    rows=2,
+    mount="THT",
+    pitch="2.54mm",
+    gender="Female",
+    # Must match digital board pin assignment exactly
+    P1=gnd,
+    P2=gnd,
+    P3=gnd,
+    P4=v3v3_ana,
+    P5=v3v3_ana,
+    P6=gnd,
+    P7=hp_l,
+    P8=hp_r,
+    P9=line_l,
+    P10=line_r,
+    P11=es_lin1[0],
+    P12=es_rin1[0],
+    P13=es_lin1[1],
+    P14=es_rin1[1],
+    P15=es_lin1[2],
+    P16=es_rin1[2],
+    P17=es_lin1[3],
+    P18=es_rin1[3],
+    P19=es_lin1[4],
+    P20=es_rin1[4],
+    P21=nc,  # I2C stays on digital board
+    P22=nc,
+    P23=gnd,
+    P24=gnd,
+    P25=v3v3_dig,
+    P26=v3v3_dig,
+    P27=nc,
+    P28=nc,
+    P29=nc,
+    P30=nc,
+    P31=nc,
+    P32=nc,
+    P33=nc,
+    P34=nc,
+    P35=nc,
+    P36=nc,
+    P37=nc,
+    P38=nc,
+    P39=nc,
+    P40=nc,
+)
+
+# =============================================================================
+# Board Configuration
+# =============================================================================
+
+Board(
+    name="analog",
+    layout_path="layout",
+    layers=6,
+)
