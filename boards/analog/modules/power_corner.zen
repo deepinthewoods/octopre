@@ -1,0 +1,268 @@
+"""
+Power Supply Corner — Analog Board Module
+
+Four-stage power architecture:
+  VBAT → TPS62140 buck (~6V) → TPS7A4700 LDO (5V_ANA) → TPS7A39 (±3.0V)
+                                                        → LM2776 charge pump (−5V_RAW)
+                                                        → 5V_ANA to digital board
+
+All switching components and their passives within the DGND island.
+TPS7A39 straddles the star point between DGND island and AGND pour.
+"""
+
+load("@stdlib/units.zen", "Voltage")
+
+# Generic components
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+Inductor = Module("@stdlib/generics/Inductor.zen")
+TestPoint = Module("@stdlib/generics/TestPoint.zen")
+
+# Specific ICs
+TPS62140 = Module("../../../components/Texas_Instruments/TPS62140RGTR/TPS62140RGTR.zen")
+TPS7A4700 = Module("../../../components/Texas_Instruments/TPS7A4700RGWR/TPS7A4700RGWR.zen")
+LM2776 = Module("../../../components/Texas_Instruments/LM2776DBVR/LM2776DBVR.zen")
+TPS7A39 = Module("../../../components/Texas_Instruments/TPS7A3901DSCR/TPS7A3901DSCR.zen")
+
+# --- Module interface ---
+
+VBAT = io("VBAT", Power)             # Raw battery input (6.0-8.4V)
+GND = io("GND", Ground)              # DGND/AGND (connected at star point)
+
+# Outputs
+V5_ANA = io("V5_ANA", Power)         # 5V_ANA clean intermediate rail
+VP3 = io("VP3", Power)               # +3.0V analog supply
+VN3 = io("VN3", Power)               # -3.0V analog supply
+
+# --- Internal nets ---
+v6_pre = Net("6V_PRE")               # Pre-regulator buck output (~6V)
+buck_sw = Net("BUCK_SW")             # Buck switch node (minimize area!)
+buck_fb = Net("BUCK_FB")             # Buck feedback divider
+buck_ss = Net("BUCK_SS")             # Buck soft-start
+buck_pg = Net("BUCK_PG")             # Buck power good
+
+neg5v_raw = Net("NEG5V_RAW")         # LM2776 output (~-4.6V unregulated)
+cp_fly_p = Net("CP_FLY_P")           # Charge pump flying cap +
+cp_fly_n = Net("CP_FLY_N")           # Charge pump flying cap -
+
+ldo_nr = Net("LDO_NR")               # TPS7A4700 noise reduction pin
+ldo_sense = Net("LDO_SENSE")         # TPS7A4700 sense/feedback
+
+tps39_fbp = Net("TPS39_FBP")         # TPS7A39 positive feedback
+tps39_fbn = Net("TPS39_FBN")         # TPS7A39 negative feedback
+tps39_nrss = Net("TPS39_NRSS")       # TPS7A39 NR/SS
+tps39_buf = Net("TPS39_BUF")         # TPS7A39 buffer output
+
+# =====================================================================
+# STAGE 1: TPS62140 Pre-Regulator Buck — VBAT → ~6V
+# =====================================================================
+
+TPS62140(
+    name="BUCK",
+    PVIN=VBAT,
+    AVIN=VBAT,
+    EN=VBAT,             # Always enabled
+    SW=buck_sw,
+    FB=buck_fb,
+    VOS=v6_pre,
+    DEF=GND,             # Adjustable output mode
+    FSW=VBAT,            # Connect to VIN → force continuous PWM mode
+    SS_TR=buck_ss,
+    PG=buck_pg,
+    PGND=GND,
+    AGND=GND,
+    EP=GND,              # Exposed pad to DGND island
+)
+
+# Buck input decoupling (highest priority tight loop)
+Capacitor(name="C_BUCK_IN1", value="10uF", package="0805", dielectric="X7R", P1=VBAT, P2=GND)
+# anchor: P1 near BUCK PVIN pin
+Capacitor(name="C_BUCK_IN2", value="100nF", package="0402", dielectric="X7R", P1=VBAT, P2=GND)
+# anchor: P1 near BUCK PVIN pin
+
+# Buck inductor (2.2uH shielded, ≤3.2x3.2mm)
+Inductor(name="L_BUCK", value="2.2uH", package="1210", P1=buck_sw, P2=v6_pre)
+# anchor: P1 near BUCK SW pin
+
+# Buck output decoupling (shared with TPS7A4700 input)
+Capacitor(name="C_BUCK_OUT1", value="22uF", package="0805", dielectric="X7R", P1=v6_pre, P2=GND)
+# anchor: P1 near BUCK VOS pin
+Capacitor(name="C_BUCK_OUT2", value="100nF", package="0402", dielectric="X7R", P1=v6_pre, P2=GND)
+# anchor: P1 near BUCK VOS pin
+
+# Buck feedback divider for ~6.0V output
+# TPS62140: Vout = 0.8V * (1 + R_top/R_bot)
+# For 6.0V: R_top/R_bot = 6.5. Use R_top=390k, R_bot=60k → 6.0V
+Resistor(name="R_BUCK_FBT", value="390k", package="0402", P1=v6_pre, P2=buck_fb)
+# anchor: P2 near BUCK FB pin
+Resistor(name="R_BUCK_FBB", value="60k", package="0402", P1=buck_fb, P2=GND)
+# anchor: P1 near BUCK FB pin
+
+# Buck soft-start
+Capacitor(name="C_BUCK_SS", value="10nF", package="0402", P1=buck_ss, P2=GND)
+# anchor: P1 near BUCK SS_TR pin
+
+# Test points
+TestPoint(name="TP_6VPRE", variant="Pad_1.0x1.0mm", P1=v6_pre)
+
+# =====================================================================
+# STAGE 2: TPS7A4700 Ultra-Low-Noise LDO — 6V → 5.0V (5V_ANA)
+# =====================================================================
+
+TPS7A4700(
+    name="LDO5V",
+    IN=v6_pre,
+    OUT=V5_ANA,
+    EN=v6_pre,           # Auto-enable from input
+    GND=GND,
+    EP=GND,              # Thermal pad to DGND island
+    NR=ldo_nr,
+    SENSE_FB=ldo_sense,
+    # ANYOUT voltage programming: short 3.2V and 0.4V → 5.0V output
+    # (1.4V internal ref + 3.2V + 0.4V = 5.0V)
+    P3P2V=GND,           # Short 3.2V pin to GND
+    P0P4V=GND,           # Short 0.4V pin to GND
+    P0P1V=NotConnected(),            # Leave open
+    P0P2V=NotConnected(),            # Leave open
+    P0P8V=NotConnected(),            # Leave open
+    P1P6V=NotConnected(),            # Leave open
+    P6P4V1=NotConnected(),           # Leave open
+    P6P4V2=NotConnected(),           # Leave open
+    NC=NotConnected(),
+)
+
+# LDO input decoupling (may be shared with buck output cap)
+Capacitor(name="C_LDO_IN1", value="10uF", package="0805", dielectric="X7R", P1=v6_pre, P2=GND)
+# anchor: P1 near LDO5V IN pin
+Capacitor(name="C_LDO_IN2", value="100nF", package="0402", dielectric="X7R", P1=v6_pre, P2=GND)
+# anchor: P1 near LDO5V IN pin
+
+# LDO output decoupling
+Capacitor(name="C_LDO_OUT1", value="10uF", package="0805", dielectric="X7R", P1=V5_ANA, P2=GND)
+# anchor: P1 near LDO5V OUT pin
+Capacitor(name="C_LDO_OUT2", value="100nF", package="0402", dielectric="X7R", P1=V5_ANA, P2=GND)
+# anchor: P1 near LDO5V OUT pin
+# Bulk 47uF
+Capacitor(name="C_LDO_BULK", value="47uF", package="1206", dielectric="X5R", P1=V5_ANA, P2=GND)
+# anchor: P1 near LDO5V OUT pin
+
+# NR pin cap (1uF for optimised noise/PSRR)
+Capacitor(name="C_LDO_NR", value="1uF", package="0603", dielectric="X7R", P1=ldo_nr, P2=GND)
+# anchor: P1 near LDO5V NR pin
+
+# SENSE/FB connects directly to output for voltage regulation
+Resistor(name="R_LDO_SENSE", value="0", package="0402", P1=V5_ANA, P2=ldo_sense)
+# anchor: P1 near LDO5V OUT pin, P2 near LDO5V SENSE_FB pin
+
+# Test point
+TestPoint(name="TP_5VANA", variant="Pad_1.0x1.0mm", P1=V5_ANA)
+
+# =====================================================================
+# STAGE 3: LM2776 Inverting Charge Pump — 5V_ANA → ~-4.6V (NEG5V_RAW)
+# =====================================================================
+
+LM2776(
+    name="CP",
+    VIN=V5_ANA,
+    VOUT=neg5v_raw,
+    EN=V5_ANA,           # Auto-enable from input
+    GND=GND,
+    C1_POS=cp_fly_p,
+    C1_NEG=cp_fly_n,
+)
+
+# Flying capacitor (≤5mm traces, closest to C1+/C1- pins)
+Capacitor(name="C_FLY", value="1uF", package="0603", dielectric="X7R", voltage="10V", P1=cp_fly_p, P2=cp_fly_n)
+# anchor: P1 near CP C1_POS pin, P2 near CP C1_NEG pin
+
+# Input cap
+Capacitor(name="C_CP_IN", value="1uF", package="0603", dielectric="X7R", voltage="10V", P1=V5_ANA, P2=GND)
+# anchor: P1 near CP VIN pin
+
+# Output cap
+Capacitor(name="C_CP_OUT", value="1uF", package="0603", dielectric="X7R", voltage="10V", P1=neg5v_raw, P2=GND)
+# anchor: P1 near CP VOUT pin
+
+# Test point
+TestPoint(name="TP_NEG5V", variant="Pad_1.0x1.0mm", P1=neg5v_raw)
+
+# =====================================================================
+# STAGE 4: TPS7A39 Dual Bipolar LDO — 5V_ANA/NEG5V_RAW → ±3.0V
+# =====================================================================
+
+TPS7A39(
+    name="BIPLDO",
+    INP=V5_ANA,          # Positive input from 5V_ANA
+    INN=neg5v_raw,       # Negative input from charge pump
+    OUTP=VP3,            # +3.0V output
+    OUTN=VN3,            # -3.0V output
+    EN=V5_ANA,           # Auto-enable from positive input
+    GND=GND,             # GND on AGND side of star point
+    EP=GND,              # Thermal pad
+    FBP=tps39_fbp,
+    FBN=tps39_fbn,
+    NR_SS=tps39_nrss,
+    BUF=tps39_buf,
+)
+
+# Positive feedback divider: +3.0V = 1.2V * (1 + R1/R2)
+# R1=180k, R2=120k → gain=2.5, Vout=3.0V (0.1% tolerance)
+Resistor(name="R_FBP_TOP", value="180k", package="0402", P1=VP3, P2=tps39_fbp)
+# anchor: P2 near BIPLDO FBP pin
+Resistor(name="R_FBP_BOT", value="120k", package="0402", P1=tps39_fbp, P2=GND)
+# anchor: P1 near BIPLDO FBP pin
+
+# Negative feedback divider: -3.0V (symmetrical)
+Resistor(name="R_FBN_TOP", value="180k", package="0402", P1=VN3, P2=tps39_fbn)
+# anchor: P2 near BIPLDO FBN pin
+Resistor(name="R_FBN_BOT", value="120k", package="0402", P1=tps39_fbn, P2=GND)
+# anchor: P1 near BIPLDO FBN pin
+
+# Feed-forward caps (10nF from FB to OUT)
+Capacitor(name="C_CFF_P", value="10nF", package="0402", dielectric="X7R", P1=tps39_fbp, P2=VP3)
+# anchor: P1 near BIPLDO FBP pin
+Capacitor(name="C_CFF_N", value="10nF", package="0402", dielectric="X7R", P1=tps39_fbn, P2=VN3)
+# anchor: P1 near BIPLDO FBN pin
+
+# NR/SS capacitor
+Capacitor(name="C_NRSS", value="10nF", package="0402", dielectric="X7R", P1=tps39_nrss, P2=GND)
+# anchor: P1 near BIPLDO NR_SS pin
+
+# Positive input decoupling
+Capacitor(name="C_39_INP1", value="10uF", package="0805", dielectric="X7R", P1=V5_ANA, P2=GND)
+# anchor: P1 near BIPLDO INP pin
+Capacitor(name="C_39_INP2", value="100nF", package="0402", dielectric="X7R", P1=V5_ANA, P2=GND)
+# anchor: P1 near BIPLDO INP pin
+
+# Negative input decoupling
+Capacitor(name="C_39_INN1", value="10uF", package="0805", dielectric="X7R", P1=neg5v_raw, P2=GND)
+# anchor: P1 near BIPLDO INN pin
+Capacitor(name="C_39_INN2", value="100nF", package="0402", dielectric="X7R", P1=neg5v_raw, P2=GND)
+# anchor: P1 near BIPLDO INN pin
+
+# Positive output decoupling
+Capacitor(name="C_39_OUTP1", value="10uF", package="0805", dielectric="X7R", P1=VP3, P2=GND)
+# anchor: P1 near BIPLDO OUTP pin
+Capacitor(name="C_39_OUTP2", value="100nF", package="0402", dielectric="X7R", P1=VP3, P2=GND)
+# anchor: P1 near BIPLDO OUTP pin
+# Bulk 100uF electrolytic on +3.0V — represented as large ceramic placeholder
+# TODO: Replace with electrolytic component when available (6.3x5.4mm, 6.3V)
+Capacitor(name="C_39_OUTP_BULK", value="100uF", package="1206", P1=VP3, P2=GND)
+# anchor: P1 near BIPLDO OUTP pin
+
+# Negative output decoupling
+Capacitor(name="C_39_OUTN1", value="10uF", package="0805", dielectric="X7R", P1=VN3, P2=GND)
+# anchor: P1 near BIPLDO OUTN pin
+Capacitor(name="C_39_OUTN2", value="100nF", package="0402", dielectric="X7R", P1=VN3, P2=GND)
+# anchor: P1 near BIPLDO OUTN pin
+# Bulk 100uF electrolytic on -3.0V
+Capacitor(name="C_39_OUTN_BULK", value="100uF", package="1206", P1=VN3, P2=GND)
+# anchor: P1 near BIPLDO OUTN pin
+
+# Buffer output — connect to GND per TPS7A39 datasheet when unused
+Resistor(name="R_BUF", value="0", package="0402", P1=tps39_buf, P2=GND)
+# anchor: P1 near BIPLDO BUF pin
+
+# Test points
+TestPoint(name="TP_VP3", variant="Pad_1.0x1.0mm", P1=VP3)
+TestPoint(name="TP_VN3", variant="Pad_1.0x1.0mm", P1=VN3)

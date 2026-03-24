@@ -1,0 +1,24 @@
+"""
+FS8205A
+
+Auto-generated using `pcb search`.
+"""
+
+mpn = config("mpn", str, optional=True, default="FS8205A")
+manufacturer = config("manufacturer", str, optional=True, default="FUXINSEMI")
+alternatives = config("alternatives", list, default=[])
+
+Pins = struct(D1_D2=io("D1_D2", Net), G1=io("G1", Net), G2=io("G2", Net), S1=io("S1", Net), S2=io("S2", Net))
+
+Component(
+    name="FS8205A",
+    mpn=mpn,
+    manufacturer=manufacturer,
+    datasheet=File("FS8205A.pdf"),
+    symbol=Symbol(library="FS8205A.kicad_sym"),
+    footprint=File("FS8205A.kicad_mod"),
+    pins={"D1/D2": Pins.D1_D2, "G1": Pins.G1, "G2": Pins.G2, "S1": Pins.S1, "S2": Pins.S2},
+    properties={
+        "alternatives": alternatives,
+    },
+)

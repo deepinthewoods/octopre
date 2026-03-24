@@ -1,0 +1,48 @@
+"""
+TPS7A3901DSCR
+
+Auto-generated using `pcb search`.
+"""
+
+mpn = config("mpn", str, optional=True, default="TPS7A3901DSCR")
+manufacturer = config("manufacturer", str, optional=True, default="Texas Instruments")
+alternatives = config("alternatives", list, default=[])
+
+Pins = struct(
+    BUF=io("BUF", Net),
+    EN=io("EN", Net),
+    EP=io("EP", Net),
+    FBN=io("FBN", Net),
+    FBP=io("FBP", Net),
+    GND=io("GND", Net),
+    INN=io("INN", Net),
+    INP=io("INP", Net),
+    NR_SS=io("NR_SS", Net),
+    OUTN=io("OUTN", Net),
+    OUTP=io("OUTP", Net),
+)
+
+Component(
+    name="TPS7A3901DSCR",
+    mpn=mpn,
+    manufacturer=manufacturer,
+    datasheet=File("TPS7A3901DSCR.pdf"),
+    symbol=Symbol(library="TPS7A3901DSCR.kicad_sym"),
+    footprint=File("TPS7A3901DSCR.kicad_mod"),
+    pins={
+        "BUF": Pins.BUF,
+        "EN": Pins.EN,
+        "EP": Pins.EP,
+        "FBN": Pins.FBN,
+        "FBP": Pins.FBP,
+        "GND": Pins.GND,
+        "INN": Pins.INN,
+        "INP": Pins.INP,
+        "NR/SS": Pins.NR_SS,
+        "OUTN": Pins.OUTN,
+        "OUTP": Pins.OUTP,
+    },
+    properties={
+        "alternatives": alternatives,
+    },
+)

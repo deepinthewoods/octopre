@@ -1,0 +1,26 @@
+"""
+Electret Microphone Bias — Analog Board Module
+
+Switchable bias circuit for CH1 and CH2 electret condenser mic input.
+Adds bias resistor and AC coupling to existing preamp input.
+Instantiate 2 times (CH1, CH2).
+"""
+
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+
+# --- Module interface ---
+VP = io("VP", Power)                 # +3.0V (bias source)
+GND = io("GND", Ground)
+PREAMP_IN = io("PREAMP_IN", Net)     # Connects to the preamp non-inverting input
+
+# --- Internal nets ---
+bias_node = Net("MIC_BIAS")
+
+# Bias resistor from V+ rail
+Resistor(name="R_BIAS", value="2.2k", package="0402", P1=VP, P2=bias_node)
+# anchor: P2 near PREAMP_IN
+
+# AC coupling cap between bias node and preamp input
+Capacitor(name="C_MIC", value="1uF", package="0603", dielectric="X7R", P1=bias_node, P2=PREAMP_IN)
+# anchor: P2 near PREAMP_IN

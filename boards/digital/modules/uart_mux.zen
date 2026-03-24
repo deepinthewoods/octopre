@@ -1,0 +1,63 @@
+"""
+UART Programming Mux — Digital Board Module
+
+74HC4052 dual 4:1 analog mux routes master UART TX/RX to one of 4 slaves.
+Master selects slave via 2 GPIO address lines.
+"""
+
+# Generic components
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+
+# Specific IC
+HC4052 = Module("../../../components/Toshiba/74HC4052D/74HC4052D.zen")
+
+# --- Module interface ---
+VCC = io("VCC", Power)
+GND = io("GND", Ground)
+
+# From master ESP32
+MUX_TX = io("MUX_TX", Net)       # Master TX to mux common input
+MUX_RX = io("MUX_RX", Net)       # Master RX from mux common output
+MUX_A = io("MUX_A", Net)         # Address bit A
+MUX_B = io("MUX_B", Net)         # Address bit B
+
+# To slaves (TX/RX pairs)
+SLAVE_TX_1 = io("SLAVE_TX_1", Net)
+SLAVE_RX_1 = io("SLAVE_RX_1", Net)
+SLAVE_TX_2 = io("SLAVE_TX_2", Net)
+SLAVE_RX_2 = io("SLAVE_RX_2", Net)
+SLAVE_TX_3 = io("SLAVE_TX_3", Net)
+SLAVE_RX_3 = io("SLAVE_RX_3", Net)
+SLAVE_TX_4 = io("SLAVE_TX_4", Net)
+SLAVE_RX_4 = io("SLAVE_RX_4", Net)
+
+# --- 74HC4052 ---
+# Dual 4:1 mux: MUX1 routes TX, MUX2 routes RX
+# Read the 74HC4052D pin names from the component .zen
+HC4052(
+    name="MUX",
+    VCC=VCC,
+    GND=GND,
+    # Common pins
+    A=MUX_A,
+    B=MUX_B,
+    INH=GND,          # Enable (active low inhibit → tie to GND)
+    # Mux 1 (TX path): master TX → slave RX
+    X_COM=MUX_TX,     # Common TX
+    P0X=SLAVE_TX_1,
+    P1X=SLAVE_TX_2,
+    P2X=SLAVE_TX_3,
+    P3X=SLAVE_TX_4,
+    # Mux 2 (RX path): slave TX → master RX
+    Y_COM=MUX_RX,     # Common RX
+    P0Y=SLAVE_RX_1,
+    P1Y=SLAVE_RX_2,
+    P2Y=SLAVE_RX_3,
+    P3Y=SLAVE_RX_4,
+    VEE=GND,          # Negative supply (tie to GND for single-supply)
+)
+
+# Decoupling
+Capacitor(name="C_MUX", value="100nF", package="0402", P1=VCC, P2=GND)
+# anchor: P1 near MUX VCC pin

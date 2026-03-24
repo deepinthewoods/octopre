@@ -1,0 +1,31 @@
+"""
+LM2776DBVR
+
+Auto-generated using `pcb search`.
+"""
+
+mpn = config("mpn", str, optional=True, default="LM2776DBVR")
+manufacturer = config("manufacturer", str, optional=True, default="Texas Instruments")
+alternatives = config("alternatives", list, default=[])
+
+Pins = struct(
+    C1_NEG=io("C1_NEG", Net),
+    C1_POS=io("C1_POS", Net),
+    EN=io("EN", Net),
+    GND=io("GND", Net),
+    VIN=io("VIN", Net),
+    VOUT=io("VOUT", Net),
+)
+
+Component(
+    name="LM2776DBVR",
+    mpn=mpn,
+    manufacturer=manufacturer,
+    datasheet=File("LM2776DBVR.pdf"),
+    symbol=Symbol(library="LM2776DBVR.kicad_sym"),
+    footprint=File("LM2776DBVR.kicad_mod"),
+    pins={"C1-": Pins.C1_NEG, "C1+": Pins.C1_POS, "EN": Pins.EN, "GND": Pins.GND, "VIN": Pins.VIN, "VOUT": Pins.VOUT},
+    properties={
+        "alternatives": alternatives,
+    },
+)

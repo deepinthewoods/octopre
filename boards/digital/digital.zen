@@ -1,0 +1,314 @@
+"""
+Digital Board — 8-Channel Audio DSP System
+
+Top-level board file. Instantiates:
+  - 1x master ESP32+ES8388+USB-C+charger section
+  - 4x slave ESP32+ES8388 pairs (replicated)
+  - 1x UART programming mux
+  - 1x power section (TPS62140 buck + TPS7A2033 LDO)
+  - TDM bus with star-routed MCLK
+
+70x55mm, 6-layer, ENIG finish.
+"""
+
+load("@stdlib/units.zen", "Voltage")
+
+# Modules
+SlavePair = Module("./modules/slave_pair.zen")
+MasterSection = Module("./modules/master_section.zen")
+UartMux = Module("./modules/uart_mux.zen")
+PowerDigital = Module("./modules/power_digital.zen")
+
+# Generic components for TDM bus damping
+Resistor = Module("@stdlib/generics/Resistor.zen")
+TestPoint = Module("@stdlib/generics/TestPoint.zen")
+
+# =====================================================================
+# GLOBAL NETS
+# =====================================================================
+
+# Power rails
+vbat = Power("VBAT", voltage=Voltage("7.4V"))
+v3v3_dig = Power("3V3_DIG", voltage=Voltage("3.3V"))
+v3v3_ana = Power("3V3_ANA", voltage=Voltage("3.3V"))
+gnd = Ground("GND")
+
+# TDM bus nets (before damping resistors)
+tdm_bclk_src = Net("TDM_BCLK_SRC")
+tdm_lrclk_src = Net("TDM_LRCLK_SRC")
+mclk_src = Net("MCLK_SRC")
+
+# TDM bus nets (after damping, to slaves)
+tdm_bclk = Net("TDM_BCLK")
+tdm_lrclk = Net("TDM_LRCLK")
+tdm_data_1 = Net("TDM_DATA_1")
+tdm_data_2 = Net("TDM_DATA_2")
+tdm_data_3 = Net("TDM_DATA_3")
+tdm_data_4 = Net("TDM_DATA_4")
+
+# MCLK star branches (one per slave)
+mclk_s1 = Net("MCLK_S1")
+mclk_s2 = Net("MCLK_S2")
+mclk_s3 = Net("MCLK_S3")
+mclk_s4 = Net("MCLK_S4")
+
+# UART mux nets
+mux_tx = Net("MUX_TX")
+mux_rx = Net("MUX_RX")
+mux_a = Net("MUX_A")
+mux_b = Net("MUX_B")
+
+# Slave UART connections
+slave_tx_1 = Net("SLAVE1_TX")
+slave_rx_1 = Net("SLAVE1_RX")
+slave_tx_2 = Net("SLAVE2_TX")
+slave_rx_2 = Net("SLAVE2_RX")
+slave_tx_3 = Net("SLAVE3_TX")
+slave_rx_3 = Net("SLAVE3_RX")
+slave_tx_4 = Net("SLAVE4_TX")
+slave_rx_4 = Net("SLAVE4_RX")
+
+# Slave control lines
+slave_gpio0_1 = Net("SLAVE1_GPIO0")
+slave_gpio0_2 = Net("SLAVE2_GPIO0")
+slave_gpio0_3 = Net("SLAVE3_GPIO0")
+slave_gpio0_4 = Net("SLAVE4_GPIO0")
+slave_en_1 = Net("SLAVE1_EN")
+slave_en_2 = Net("SLAVE2_EN")
+slave_en_3 = Net("SLAVE3_EN")
+slave_en_4 = Net("SLAVE4_EN")
+
+# Slave header analog signals
+s1_ain_l = Net("S1_AIN_L")
+s1_ain_r = Net("S1_AIN_R")
+s1_dac_l = Net("S1_DAC_L")
+s1_dac_r = Net("S1_DAC_R")
+s1_pwm_l = Net("S1_PWM_L")
+s1_pwm_r = Net("S1_PWM_R")
+
+s2_ain_l = Net("S2_AIN_L")
+s2_ain_r = Net("S2_AIN_R")
+s2_dac_l = Net("S2_DAC_L")
+s2_dac_r = Net("S2_DAC_R")
+s2_pwm_l = Net("S2_PWM_L")
+s2_pwm_r = Net("S2_PWM_R")
+
+s3_ain_l = Net("S3_AIN_L")
+s3_ain_r = Net("S3_AIN_R")
+s3_dac_l = Net("S3_DAC_L")
+s3_dac_r = Net("S3_DAC_R")
+s3_pwm_l = Net("S3_PWM_L")
+s3_pwm_r = Net("S3_PWM_R")
+
+s4_ain_l = Net("S4_AIN_L")
+s4_ain_r = Net("S4_AIN_R")
+s4_dac_l = Net("S4_DAC_L")
+s4_dac_r = Net("S4_DAC_R")
+s4_pwm_l = Net("S4_PWM_L")
+s4_pwm_r = Net("S4_PWM_R")
+
+# Master header signals
+m_ain_l = Net("M_AIN_L")
+m_ain_r = Net("M_AIN_R")
+m_dac_l = Net("M_DAC_L")
+m_dac_r = Net("M_DAC_R")
+m_hp_l = Net("M_HP_L")
+m_hp_r = Net("M_HP_R")
+m_5v_ana = Net("M_5V_ANA")
+
+# =====================================================================
+# POWER SECTION
+# =====================================================================
+PowerDigital(
+    name="PWR",
+    VBAT=vbat,
+    GND=gnd,
+    VCC_DIG=v3v3_dig,
+    VCC_ANA=v3v3_ana,
+    V5_ANA_IN=m_5v_ana,
+)
+
+# =====================================================================
+# MASTER SECTION
+# =====================================================================
+MasterSection(
+    name="MASTER",
+    VCC_DIG=v3v3_dig,
+    VCC_ANA=v3v3_ana,
+    GND=gnd,
+    VBAT=vbat,
+    # TDM bus
+    TDM_BCLK=tdm_bclk_src,
+    TDM_LRCLK=tdm_lrclk_src,
+    TDM_DATA_1=tdm_data_1,
+    TDM_DATA_2=tdm_data_2,
+    TDM_DATA_3=tdm_data_3,
+    TDM_DATA_4=tdm_data_4,
+    MCLK_OUT=mclk_src,
+    # UART mux
+    MUX_TX=mux_tx,
+    MUX_RX=mux_rx,
+    MUX_A=mux_a,
+    MUX_B=mux_b,
+    # Slave control
+    SLAVE_GPIO0_1=slave_gpio0_1,
+    SLAVE_GPIO0_2=slave_gpio0_2,
+    SLAVE_GPIO0_3=slave_gpio0_3,
+    SLAVE_GPIO0_4=slave_gpio0_4,
+    SLAVE_EN_1=slave_en_1,
+    SLAVE_EN_2=slave_en_2,
+    SLAVE_EN_3=slave_en_3,
+    SLAVE_EN_4=slave_en_4,
+    # Master header
+    HDR_AIN_L=m_ain_l,
+    HDR_AIN_R=m_ain_r,
+    HDR_DAC_L=m_dac_l,
+    HDR_DAC_R=m_dac_r,
+    HDR_HP_L=m_hp_l,
+    HDR_HP_R=m_hp_r,
+    HDR_5V_ANA=m_5v_ana,
+)
+
+# =====================================================================
+# TDM BUS DAMPING RESISTORS
+# =====================================================================
+
+# BCLK series damping (33 ohm at source)
+Resistor(name="R_TDM_BCLK", value="33", package="0402", P1=tdm_bclk_src, P2=tdm_bclk)
+# anchor: P1 near MASTER MCU IO9 pin
+
+# LRCLK series damping (33 ohm at source)
+Resistor(name="R_TDM_LRCLK", value="33", package="0402", P1=tdm_lrclk_src, P2=tdm_lrclk)
+# anchor: P1 near MASTER MCU IO10 pin
+
+# MCLK star-routed with series damping (22-33 ohm per branch)
+Resistor(name="R_MCLK_S1", value="33", package="0402", P1=mclk_src, P2=mclk_s1)
+# anchor: P1 near MASTER MCU IO15 pin
+Resistor(name="R_MCLK_S2", value="33", package="0402", P1=mclk_src, P2=mclk_s2)
+# anchor: P1 near MASTER MCU IO15 pin
+Resistor(name="R_MCLK_S3", value="33", package="0402", P1=mclk_src, P2=mclk_s3)
+# anchor: P1 near MASTER MCU IO15 pin
+Resistor(name="R_MCLK_S4", value="33", package="0402", P1=mclk_src, P2=mclk_s4)
+# anchor: P1 near MASTER MCU IO15 pin
+
+# =====================================================================
+# SLAVE PAIRS (x4)
+# =====================================================================
+SlavePair(
+    name="SLAVE1",
+    idx=1,
+    VCC_DIG=v3v3_dig,
+    VCC_ANA=v3v3_ana,
+    GND=gnd,
+    TDM_BCLK=tdm_bclk,
+    TDM_LRCLK=tdm_lrclk,
+    TDM_DATA_OUT=tdm_data_1,
+    MCLK_IN=mclk_s1,
+    UART_TX=slave_tx_1,
+    UART_RX=slave_rx_1,
+    SLAVE_GPIO0=slave_gpio0_1,
+    SLAVE_EN=slave_en_1,
+    HDR_AIN_L=s1_ain_l,
+    HDR_AIN_R=s1_ain_r,
+    HDR_DAC_L=s1_dac_l,
+    HDR_DAC_R=s1_dac_r,
+    HDR_PWM_L=s1_pwm_l,
+    HDR_PWM_R=s1_pwm_r,
+)
+
+SlavePair(
+    name="SLAVE2",
+    idx=2,
+    VCC_DIG=v3v3_dig,
+    VCC_ANA=v3v3_ana,
+    GND=gnd,
+    TDM_BCLK=tdm_bclk,
+    TDM_LRCLK=tdm_lrclk,
+    TDM_DATA_OUT=tdm_data_2,
+    MCLK_IN=mclk_s2,
+    UART_TX=slave_tx_2,
+    UART_RX=slave_rx_2,
+    SLAVE_GPIO0=slave_gpio0_2,
+    SLAVE_EN=slave_en_2,
+    HDR_AIN_L=s2_ain_l,
+    HDR_AIN_R=s2_ain_r,
+    HDR_DAC_L=s2_dac_l,
+    HDR_DAC_R=s2_dac_r,
+    HDR_PWM_L=s2_pwm_l,
+    HDR_PWM_R=s2_pwm_r,
+)
+
+SlavePair(
+    name="SLAVE3",
+    idx=3,
+    VCC_DIG=v3v3_dig,
+    VCC_ANA=v3v3_ana,
+    GND=gnd,
+    TDM_BCLK=tdm_bclk,
+    TDM_LRCLK=tdm_lrclk,
+    TDM_DATA_OUT=tdm_data_3,
+    MCLK_IN=mclk_s3,
+    UART_TX=slave_tx_3,
+    UART_RX=slave_rx_3,
+    SLAVE_GPIO0=slave_gpio0_3,
+    SLAVE_EN=slave_en_3,
+    HDR_AIN_L=s3_ain_l,
+    HDR_AIN_R=s3_ain_r,
+    HDR_DAC_L=s3_dac_l,
+    HDR_DAC_R=s3_dac_r,
+    HDR_PWM_L=s3_pwm_l,
+    HDR_PWM_R=s3_pwm_r,
+)
+
+SlavePair(
+    name="SLAVE4",
+    idx=4,
+    VCC_DIG=v3v3_dig,
+    VCC_ANA=v3v3_ana,
+    GND=gnd,
+    TDM_BCLK=tdm_bclk,
+    TDM_LRCLK=tdm_lrclk,
+    TDM_DATA_OUT=tdm_data_4,
+    MCLK_IN=mclk_s4,
+    UART_TX=slave_tx_4,
+    UART_RX=slave_rx_4,
+    SLAVE_GPIO0=slave_gpio0_4,
+    SLAVE_EN=slave_en_4,
+    HDR_AIN_L=s4_ain_l,
+    HDR_AIN_R=s4_ain_r,
+    HDR_DAC_L=s4_dac_l,
+    HDR_DAC_R=s4_dac_r,
+    HDR_PWM_L=s4_pwm_l,
+    HDR_PWM_R=s4_pwm_r,
+)
+
+# =====================================================================
+# UART MUX
+# =====================================================================
+UartMux(
+    name="UMUX",
+    VCC=v3v3_dig,
+    GND=gnd,
+    MUX_TX=mux_tx,
+    MUX_RX=mux_rx,
+    MUX_A=mux_a,
+    MUX_B=mux_b,
+    SLAVE_TX_1=slave_tx_1,
+    SLAVE_RX_1=slave_rx_1,
+    SLAVE_TX_2=slave_tx_2,
+    SLAVE_RX_2=slave_rx_2,
+    SLAVE_TX_3=slave_tx_3,
+    SLAVE_RX_3=slave_rx_3,
+    SLAVE_TX_4=slave_tx_4,
+    SLAVE_RX_4=slave_rx_4,
+)
+
+# =====================================================================
+# BOARD CONFIGURATION
+# =====================================================================
+Board(
+    name="digital",
+    layers=6,
+    layout_path="layout/digital",
+    copper_finish="ENIG",
+)

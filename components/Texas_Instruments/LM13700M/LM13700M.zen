@@ -1,0 +1,57 @@
+"""
+LM13700M
+
+Auto-generated using `pcb search`.
+"""
+
+mpn = config("mpn", str, optional=True, default="LM13700M")
+manufacturer = config("manufacturer", str, optional=True, default="Texas Instruments")
+alternatives = config("alternatives", list, default=[])
+
+Pins = struct(
+    AMP_BIAS_INPUT_1=io("AMP_BIAS_INPUT_1", Net),
+    AMP_BIAS_INPUT_2=io("AMP_BIAS_INPUT_2", Net),
+    BUFFER_INPUT_1=io("BUFFER_INPUT_1", Net),
+    BUFFER_INPUT_2=io("BUFFER_INPUT_2", Net),
+    BUFFER_OUTPUT_1=io("BUFFER_OUTPUT_1", Net),
+    BUFFER_OUTPUT_2=io("BUFFER_OUTPUT_2", Net),
+    DIODE_BIAS_1=io("DIODE_BIAS_1", Net),
+    DIODE_BIAS_2=io("DIODE_BIAS_2", Net),
+    INPUT_POS_1=io("INPUT_POS_1", Net),
+    INPUT_NEG_1=io("INPUT_NEG_1", Net),
+    INPUT_POS_2=io("INPUT_POS_2", Net),
+    INPUT_NEG_2=io("INPUT_NEG_2", Net),
+    OUTPUT_1=io("OUTPUT_1", Net),
+    OUTPUT_2=io("OUTPUT_2", Net),
+    V_NEG=io("V_NEG", Net),
+    V_POS=io("V_POS", Net),
+)
+
+Component(
+    name="LM13700M",
+    mpn=mpn,
+    manufacturer=manufacturer,
+    symbol=Symbol(library="LM13700M.kicad_sym"),
+    footprint=File("LM13700M.kicad_mod"),
+    pins={
+        "AMP_BIAS_INPUT_1": Pins.AMP_BIAS_INPUT_1,
+        "AMP_BIAS_INPUT_2": Pins.AMP_BIAS_INPUT_2,
+        "BUFFER_INPUT_1": Pins.BUFFER_INPUT_1,
+        "BUFFER_INPUT_2": Pins.BUFFER_INPUT_2,
+        "BUFFER_OUTPUT_1": Pins.BUFFER_OUTPUT_1,
+        "BUFFER_OUTPUT_2": Pins.BUFFER_OUTPUT_2,
+        "DIODE_BIAS_1": Pins.DIODE_BIAS_1,
+        "DIODE_BIAS_2": Pins.DIODE_BIAS_2,
+        "INPUT+_1": Pins.INPUT_POS_1,
+        "INPUT-_1": Pins.INPUT_NEG_1,
+        "INPUT+_2": Pins.INPUT_POS_2,
+        "INPUT-_2": Pins.INPUT_NEG_2,
+        "OUTPUT_1": Pins.OUTPUT_1,
+        "OUTPUT_2": Pins.OUTPUT_2,
+        "V-": Pins.V_NEG,
+        "V+": Pins.V_POS,
+    },
+    properties={
+        "alternatives": alternatives,
+    },
+)

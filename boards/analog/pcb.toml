@@ -1,0 +1,11 @@
+[board]
+name = "analog"
+path = "analog.zen"
+
+[dependencies]
+"github.com/user/8chdsp/components/Texas_Instruments/LM13700M" = "0.1.0"
+"github.com/user/8chdsp/components/Texas_Instruments/LM2776DBVR" = "0.1.0"
+"github.com/user/8chdsp/components/Texas_Instruments/OPA2134UA" = "0.1.0"
+"github.com/user/8chdsp/components/Texas_Instruments/TPS62140RGTR" = "0.1.0"
+"github.com/user/8chdsp/components/Texas_Instruments/TPS7A3901DSCR" = "0.1.0"
+"github.com/user/8chdsp/components/Texas_Instruments/TPS7A4700RGWR" = "0.1.0"

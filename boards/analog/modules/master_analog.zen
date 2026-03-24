@@ -1,0 +1,261 @@
+"""
+Master Analog Section — Analog Board Module
+
+Summing amplifier (OPA2134) + line output buffer (OPA2134) + headphone output +
+line input selection + master 2x6 interconnect header.
+One-off module (not replicated).
+"""
+
+# Generic components
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+PinHeader = Module("@stdlib/generics/PinHeader.zen")
+TestPoint = Module("@stdlib/generics/TestPoint.zen")
+
+# Specific ICs
+OPA2134 = Module("../../../components/Texas_Instruments/OPA2134UA/OPA2134UA.zen")
+
+# --- Module interface ---
+
+# Power
+VP = io("VP", Power)                 # +3.0V
+VN = io("VN", Power)                 # -3.0V
+GND = io("GND", Ground)             # AGND
+VBAT = io("VBAT", Power)            # Battery voltage (from master header)
+V5_ANA = io("V5_ANA", Power)        # 5V_ANA to digital board
+
+# Summing bus inputs (from 4 slave overdrive channels)
+SUM_L_1 = io("SUM_L_1", Net)
+SUM_L_2 = io("SUM_L_2", Net)
+SUM_L_3 = io("SUM_L_3", Net)
+SUM_L_4 = io("SUM_L_4", Net)
+SUM_R_1 = io("SUM_R_1", Net)
+SUM_R_2 = io("SUM_R_2", Net)
+SUM_R_3 = io("SUM_R_3", Net)
+SUM_R_4 = io("SUM_R_4", Net)
+
+# --- Internal nets ---
+sum_out_l = Net("SUM_OUT_L")         # Summing amp output L
+sum_out_r = Net("SUM_OUT_R")         # Summing amp output R
+sum_fb_l = Net("SUM_FB_L")
+sum_fb_r = Net("SUM_FB_R")
+
+# Header signals
+hdr_ain_l = Net("HDR_AIN_L")        # To master ES8388 ADC via header
+hdr_ain_r = Net("HDR_AIN_R")
+hdr_dac_l = Net("HDR_DAC_L")        # From master ES8388 DAC
+hdr_dac_r = Net("HDR_DAC_R")
+hdr_hp_l = Net("HDR_HP_L")          # ES8388 headphone amp
+hdr_hp_r = Net("HDR_HP_R")
+
+# Line output
+line_buf_l = Net("LINE_BUF_L")
+line_buf_r = Net("LINE_BUF_R")
+line_out_l = Net("LINE_OUT_L")
+line_out_r = Net("LINE_OUT_R")
+line_buf_fb_l = Net("LINE_FB_L")
+line_buf_fb_r = Net("LINE_FB_R")
+
+# Headphone output
+hp_out_l = Net("HP_OUT_L")
+hp_out_r = Net("HP_OUT_R")
+
+# Line input selection
+ext_in_l = Net("EXT_IN_L")
+ext_in_r = Net("EXT_IN_R")
+
+# =====================================================================
+# SUMMING AMPLIFIER — Inverting summing, OPA2134 dual for stereo
+# =====================================================================
+OPA2134(
+    name="SUMAMP",
+    VP=VP,
+    VN=VN,
+    # Left channel — op-amp A (inverting summing)
+    INP_A=GND,              # Non-inverting input to ground
+    INN_A=sum_fb_l,         # Virtual ground (inverting input)
+    OUT_A=sum_out_l,
+    # Right channel — op-amp B
+    INP_B=GND,
+    INN_B=sum_fb_r,
+    OUT_B=sum_out_r,
+)
+
+# Summing amp decoupling
+Capacitor(name="C_SUM_VP", value="100nF", package="0402", P1=VP, P2=GND)
+# anchor: P1 near SUMAMP VP pin
+Capacitor(name="C_SUM_VN", value="100nF", package="0402", P1=VN, P2=GND)
+# anchor: P1 near SUMAMP VN pin
+
+# Left summing resistors (4x 10k 1% → virtual ground)
+Resistor(name="R_SUM_L1", value="10k", package="0402", P1=SUM_L_1, P2=sum_fb_l)
+# anchor: P2 near SUMAMP INN_A pin
+Resistor(name="R_SUM_L2", value="10k", package="0402", P1=SUM_L_2, P2=sum_fb_l)
+# anchor: P2 near SUMAMP INN_A pin
+Resistor(name="R_SUM_L3", value="10k", package="0402", P1=SUM_L_3, P2=sum_fb_l)
+# anchor: P2 near SUMAMP INN_A pin
+Resistor(name="R_SUM_L4", value="10k", package="0402", P1=SUM_L_4, P2=sum_fb_l)
+# anchor: P2 near SUMAMP INN_A pin
+
+# Right summing resistors
+Resistor(name="R_SUM_R1", value="10k", package="0402", P1=SUM_R_1, P2=sum_fb_r)
+# anchor: P2 near SUMAMP INN_B pin
+Resistor(name="R_SUM_R2", value="10k", package="0402", P1=SUM_R_2, P2=sum_fb_r)
+# anchor: P2 near SUMAMP INN_B pin
+Resistor(name="R_SUM_R3", value="10k", package="0402", P1=SUM_R_3, P2=sum_fb_r)
+# anchor: P2 near SUMAMP INN_B pin
+Resistor(name="R_SUM_R4", value="10k", package="0402", P1=SUM_R_4, P2=sum_fb_r)
+# anchor: P2 near SUMAMP INN_B pin
+
+# Feedback resistor 10k 1% (TODO: add Nidec ST-4EA trim pot in series)
+Resistor(name="R_SUM_FBL", value="10k", package="0402", P1=sum_out_l, P2=sum_fb_l)
+# anchor: P1 near SUMAMP OUT_A pin, P2 near SUMAMP INN_A pin
+Resistor(name="R_SUM_FBR", value="10k", package="0402", P1=sum_out_r, P2=sum_fb_r)
+# anchor: P1 near SUMAMP OUT_B pin, P2 near SUMAMP INN_B pin
+
+# Summing amp output AC coupling to header AIN
+Capacitor(name="C_SUM_L", value="10uF", package="0805", dielectric="X5R", P1=sum_out_l, P2=hdr_ain_l)
+# anchor: P1 near SUMAMP OUT_A pin
+Capacitor(name="C_SUM_R", value="10uF", package="0805", dielectric="X5R", P1=sum_out_r, P2=hdr_ain_r)
+# anchor: P1 near SUMAMP OUT_B pin
+
+# =====================================================================
+# LINE INPUT SELECTION — 3-pin jumper headers (SUM / AIN / EXT)
+# =====================================================================
+# Left channel selector
+PinHeader(
+    name="SEL_L",
+    pins=3,
+    rows=1,
+    mount="THT",
+    P1=hdr_ain_l,         # Centre → to header AIN
+    P2=sum_out_l,         # SUM side
+    P3=ext_in_l,          # EXT side
+)
+
+# Right channel selector
+PinHeader(
+    name="SEL_R",
+    pins=3,
+    rows=1,
+    mount="THT",
+    P1=hdr_ain_r,
+    P2=sum_out_r,
+    P3=ext_in_r,
+)
+
+# External line input pads
+PinHeader(
+    name="LINE_IN",
+    pins=3,
+    rows=1,
+    mount="THT",
+    P1=ext_in_l,
+    P2=ext_in_r,
+    P3=GND,
+)
+
+# =====================================================================
+# LINE OUTPUT BUFFER — Unity-gain OPA2134
+# =====================================================================
+OPA2134(
+    name="LINEBUF",
+    VP=VP,
+    VN=VN,
+    # Left — unity gain buffer
+    INP_A=hdr_dac_l,
+    INN_A=line_buf_fb_l,
+    OUT_A=line_buf_l,
+    # Right
+    INP_B=hdr_dac_r,
+    INN_B=line_buf_fb_r,
+    OUT_B=line_buf_r,
+)
+
+# Unity gain feedback
+Resistor(name="R_LBF_L", value="0", package="0402", P1=line_buf_l, P2=line_buf_fb_l)
+# anchor: P1 near LINEBUF OUT_A pin, P2 near LINEBUF INN_A pin
+Resistor(name="R_LBF_R", value="0", package="0402", P1=line_buf_r, P2=line_buf_fb_r)
+# anchor: P1 near LINEBUF OUT_B pin, P2 near LINEBUF INN_B pin
+
+# Line buffer decoupling
+Capacitor(name="C_LB_VP", value="100nF", package="0402", P1=VP, P2=GND)
+# anchor: P1 near LINEBUF VP pin
+Capacitor(name="C_LB_VN", value="100nF", package="0402", P1=VN, P2=GND)
+# anchor: P1 near LINEBUF VN pin
+
+# Output series resistor (100 ohm output impedance)
+Resistor(name="R_LO_L", value="100", package="0402", P1=line_buf_l, P2=line_out_l)
+# anchor: P1 near LINEBUF OUT_A pin
+Resistor(name="R_LO_R", value="100", package="0402", P1=line_buf_r, P2=line_out_r)
+# anchor: P1 near LINEBUF OUT_B pin
+
+# Output AC coupling
+Capacitor(name="C_LO_L", value="10uF", package="0805", dielectric="X5R", P1=line_out_l, P2=GND)
+# anchor: P1 near R_LO_L P2
+Capacitor(name="C_LO_R", value="10uF", package="0805", dielectric="X5R", P1=line_out_r, P2=GND)
+# anchor: P1 near R_LO_R P2
+
+# Line output pads
+PinHeader(
+    name="LINE_OUT",
+    pins=3,
+    rows=1,
+    mount="THT",
+    P1=line_out_l,
+    P2=line_out_r,
+    P3=GND,
+)
+
+# =====================================================================
+# HEADPHONE OUTPUT — from ES8388 HP amp via header, filtered
+# =====================================================================
+# TODO: 220uF electrolytic coupling caps + polyfuse protection
+# Using large ceramic placeholder until electrolytic component available
+Capacitor(name="C_HP_L", value="220uF", package="1206", P1=hdr_hp_l, P2=hp_out_l)
+# anchor: P1 near MHDR pin 7
+Capacitor(name="C_HP_R", value="220uF", package="1206", P1=hdr_hp_r, P2=hp_out_r)
+# anchor: P1 near MHDR pin 8
+
+# Polyfuse protection (100mA hold)
+Resistor(name="R_HP_PROT_L", value="0", package="1206", P1=hp_out_l, P2=GND)
+# anchor: P1 near C_HP_L P2 — TODO: replace with polyfuse
+Resistor(name="R_HP_PROT_R", value="0", package="1206", P1=hp_out_r, P2=GND)
+# anchor: P1 near C_HP_R P2
+
+# Headphone output pads
+PinHeader(
+    name="HP_OUT",
+    pins=3,
+    rows=1,
+    mount="THT",
+    P1=hp_out_l,
+    P2=hp_out_r,
+    P3=GND,
+)
+
+# =====================================================================
+# MASTER 2x6 INTERCONNECT HEADER
+# =====================================================================
+PinHeader(
+    name="MHDR",
+    pins=6,
+    rows=2,
+    mount="THT",
+    P1=GND,
+    P2=GND,
+    P3=hdr_ain_l,
+    P4=hdr_ain_r,
+    P5=hdr_dac_l,
+    P6=hdr_dac_r,
+    P7=hdr_hp_l,
+    P8=hdr_hp_r,
+    P9=GND,
+    P10=GND,
+    P11=VBAT,
+    P12=V5_ANA,
+)
+
+# Test points
+TestPoint(name="TP_SUM_L", variant="Pad_1.0x1.0mm", P1=sum_out_l)
+TestPoint(name="TP_LINE_L", variant="Pad_1.0x1.0mm", P1=line_out_l)

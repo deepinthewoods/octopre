@@ -1,0 +1,62 @@
+"""
+SC8922QDLR
+
+Auto-generated using `pcb search`.
+"""
+
+mpn = config("mpn", str, optional=True, default="SC8922QDLR")
+manufacturer = config("manufacturer", str, optional=True)
+alternatives = config("alternatives", list, default=[])
+
+Pins = struct(
+    AGND=io("AGND", Net),
+    BT=io("BT", Net),
+    CSEL=io("CSEL", Net),
+    ICHG=io("ICHG", Net),
+    IIN=io("IIN", Net),
+    MODE=io("MODE", Net),
+    NC=io("NC", Net),
+    NTC=io("NTC", Net),
+    PG=io("PG", Net),
+    PGND=io("PGND", Net),
+    SW=io("SW", Net),
+    VBAT=io("VBAT", Net),
+    VBATS=io("VBATS", Net),
+    VIN=io("VIN", Net),
+    VS1=io("VS1", Net),
+    VS2=io("VS2", Net),
+    VS3=io("VS3", Net),
+    VSYS=io("VSYS", Net),
+)
+
+Component(
+    name="SC8922QDLR",
+    mpn=mpn,
+    manufacturer=manufacturer,
+    datasheet=File("SC8922QDLR.pdf"),
+    symbol=Symbol(library="SC8922QDLR.kicad_sym"),
+    footprint=File("SC8922QDLR.kicad_mod"),
+    pins={
+        "AGND": Pins.AGND,
+        "BT": Pins.BT,
+        "CSEL": Pins.CSEL,
+        "ICHG": Pins.ICHG,
+        "IIN": Pins.IIN,
+        "MODE": Pins.MODE,
+        "NC": Pins.NC,
+        "NTC": Pins.NTC,
+        "PG": Pins.PG,
+        "PGND": Pins.PGND,
+        "SW": Pins.SW,
+        "VBAT": Pins.VBAT,
+        "VBATS": Pins.VBATS,
+        "VIN": Pins.VIN,
+        "VS1": Pins.VS1,
+        "VS2": Pins.VS2,
+        "VS3": Pins.VS3,
+        "VSYS": Pins.VSYS,
+    },
+    properties={
+        "alternatives": alternatives,
+    },
+)

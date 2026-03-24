@@ -1,0 +1,58 @@
+"""
+TPS7A4700RGWR
+
+Auto-generated using `pcb search`.
+"""
+
+mpn = config("mpn", str, optional=True, default="TPS7A4700RGWR")
+manufacturer = config("manufacturer", str, optional=True, default="Texas Instruments")
+alternatives = config("alternatives", list, default=[])
+
+Pins = struct(
+    EN=io("EN", Net),
+    EP=io("EP", Net),
+    GND=io("GND", Net),
+    IN=io("IN", Net),
+    NC=io("NC", Net),
+    NR=io("NR", Net),
+    OUT=io("OUT", Net),
+    P0P1V=io("P0P1V", Net),
+    P0P2V=io("P0P2V", Net),
+    P0P4V=io("P0P4V", Net),
+    P0P8V=io("P0P8V", Net),
+    P1P6V=io("P1P6V", Net),
+    P3P2V=io("P3P2V", Net),
+    P6P4V1=io("P6P4V1", Net),
+    P6P4V2=io("P6P4V2", Net),
+    SENSE_FB=io("SENSE_FB", Net),
+)
+
+Component(
+    name="TPS7A4700RGWR",
+    mpn=mpn,
+    manufacturer=manufacturer,
+    datasheet=File("TPS7A4700RGWR.pdf"),
+    symbol=Symbol(library="TPS7A4700RGWR.kicad_sym"),
+    footprint=File("TPS7A4700RGWR.kicad_mod"),
+    pins={
+        "EN": Pins.EN,
+        "EP": Pins.EP,
+        "GND": Pins.GND,
+        "IN": Pins.IN,
+        "NC": Pins.NC,
+        "NR": Pins.NR,
+        "OUT": Pins.OUT,
+        "0P1V": Pins.P0P1V,
+        "0P2V": Pins.P0P2V,
+        "0P4V": Pins.P0P4V,
+        "0P8V": Pins.P0P8V,
+        "1P6V": Pins.P1P6V,
+        "3P2V": Pins.P3P2V,
+        "6P4V1": Pins.P6P4V1,
+        "6P4V2": Pins.P6P4V2,
+        "SENSE/FB": Pins.SENSE_FB,
+    },
+    properties={
+        "alternatives": alternatives,
+    },
+)

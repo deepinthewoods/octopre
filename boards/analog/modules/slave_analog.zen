@@ -1,0 +1,212 @@
+"""
+Slave Analog Channel Pair — Analog Board Module
+
+One slave channel pair: OPA2134 preamp (2ch) + LM13700 overdrive (2ch) + 2x5 header.
+Each OPA2134 dual op-amp handles L+R preamp. Each LM13700 dual OTA handles L+R overdrive.
+Instantiate 4 times in analog.zen.
+"""
+
+# Generic components
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+Diode = Module("@stdlib/generics/Diode.zen")
+PinHeader = Module("@stdlib/generics/PinHeader.zen")
+TestPoint = Module("@stdlib/generics/TestPoint.zen")
+
+# Specific ICs
+OPA2134 = Module("../../../components/Texas_Instruments/OPA2134UA/OPA2134UA.zen")
+LM13700 = Module("../../../components/Texas_Instruments/LM13700M/LM13700M.zen")
+
+# --- Module interface ---
+
+# Power
+VP = io("VP", Power)             # +3.0V
+VN = io("VN", Power)             # -3.0V
+GND = io("GND", Ground)          # AGND
+
+# Header signals (to/from digital board)
+HDR_AIN_L = io("HDR_AIN_L", Net)    # Preamp output L → digital board ES8388 ADC
+HDR_AIN_R = io("HDR_AIN_R", Net)    # Preamp output R → digital board ES8388 ADC
+HDR_DAC_L = io("HDR_DAC_L", Net)    # ES8388 DAC L from digital board → overdrive
+HDR_DAC_R = io("HDR_DAC_R", Net)    # ES8388 DAC R from digital board → overdrive
+HDR_PWM_L = io("HDR_PWM_L", Net)    # PWM overdrive control L from digital board
+HDR_PWM_R = io("HDR_PWM_R", Net)    # PWM overdrive control R from digital board
+
+# Audio inputs (from user-facing pads)
+AUDIO_IN_L = io("AUDIO_IN_L", Net)  # External audio input left
+AUDIO_IN_R = io("AUDIO_IN_R", Net)  # External audio input right
+
+# Summing bus outputs
+SUM_OUT_L = io("SUM_OUT_L", Net)    # Overdrive output L → summing bus
+SUM_OUT_R = io("SUM_OUT_R", Net)    # Overdrive output R → summing bus
+
+# Configuration
+idx = config("idx", int)            # Channel pair index 1-4 (for naming)
+
+# --- Internal nets ---
+preamp_out_l = Net("PREAMP_OUT_L")
+preamp_out_r = Net("PREAMP_OUT_R")
+preamp_fb_l = Net("PREAMP_FB_L")
+preamp_fb_r = Net("PREAMP_FB_R")
+od_in_l = Net("OD_IN_L")            # AC-coupled DAC to OTA input
+od_in_r = Net("OD_IN_R")
+od_ctrl_l = Net("OD_CTRL_L")        # Filtered PWM DC for bias current
+od_ctrl_r = Net("OD_CTRL_R")
+od_bias_l = Net("OD_BIAS_L")        # After series resistor to I_ABC
+od_bias_r = Net("OD_BIAS_R")
+od_out_l = Net("OD_OUT_L")          # OTA output
+od_out_r = Net("OD_OUT_R")
+buf_in_l = Net("BUF_IN_L")          # Linearizing diode node
+buf_in_r = Net("BUF_IN_R")
+
+# =====================================================================
+# PREAMP SECTION — Non-inverting OPA2134 with variable gain
+# =====================================================================
+
+OPA2134(
+    name="PREAMP",
+    VP=VP,
+    VN=VN,
+    # Channel L — op-amp A
+    INP_A=AUDIO_IN_L,
+    INN_A=preamp_fb_l,
+    OUT_A=preamp_out_l,
+    # Channel R — op-amp B
+    INP_B=AUDIO_IN_R,
+    INN_B=preamp_fb_r,
+    OUT_B=preamp_out_r,
+)
+
+# Preamp power decoupling
+Capacitor(name="C_PRE_VP", value="100nF", package="0402", P1=VP, P2=GND)
+# anchor: P1 near PREAMP VP pin
+Capacitor(name="C_PRE_VN", value="100nF", package="0402", P1=VN, P2=GND)
+# anchor: P1 near PREAMP VN pin
+
+# Input AC coupling — 10uF per channel
+Capacitor(name="C_IN_L", value="10uF", package="0805", dielectric="X5R", P1=AUDIO_IN_L, P2=GND)
+# anchor: P1 near PREAMP INP_A pin
+Capacitor(name="C_IN_R", value="10uF", package="0805", dielectric="X5R", P1=AUDIO_IN_R, P2=GND)
+# anchor: P1 near PREAMP INP_B pin
+
+# Input protection — Schottky clamp diodes to V+ and V-
+Diode(name="D_PROT_LP", package="SOD-323", A=AUDIO_IN_L, K=VP)
+# anchor: A near PREAMP INP_A pin
+Diode(name="D_PROT_LN", package="SOD-323", A=VN, K=AUDIO_IN_L)
+# anchor: K near PREAMP INP_A pin
+Diode(name="D_PROT_RP", package="SOD-323", A=AUDIO_IN_R, K=VP)
+# anchor: A near PREAMP INP_B pin
+Diode(name="D_PROT_RN", package="SOD-323", A=VN, K=AUDIO_IN_R)
+# anchor: K near PREAMP INP_B pin
+
+# Gain feedback: non-inverting, variable 0-30dB
+# Gain = 1 + R_top/R_bot where R_top is the trim pot (0-10k)
+# At max trim: 1 + 10k/330 = ~31.3 = ~30dB
+# At min trim: 1 + 0/330 = 1 = 0dB
+# NOTE: Trim pots (Nidec ST-4EA 10k) not available as generic — use specific part
+# For now using a resistor placeholder — will be replaced with trim pot component
+Resistor(name="R_FB_L", value="330", package="0402", P1=preamp_fb_l, P2=GND)
+# anchor: P1 near PREAMP INN_A pin
+Resistor(name="R_FB_R", value="330", package="0402", P1=preamp_fb_r, P2=GND)
+# anchor: P1 near PREAMP INN_B pin
+
+# TODO: Nidec ST-4EA 10k trim pots in series with feedback (preamp_out → trim → preamp_fb)
+# For now connect output to feedback through a placeholder
+Resistor(name="R_GAIN_L", value="10k", package="0402", P1=preamp_out_l, P2=preamp_fb_l)
+# anchor: P1 near PREAMP OUT_A pin, P2 near PREAMP INN_A pin
+Resistor(name="R_GAIN_R", value="10k", package="0402", P1=preamp_out_r, P2=preamp_fb_r)
+# anchor: P1 near PREAMP OUT_B pin, P2 near PREAMP INN_B pin
+
+# Preamp output to header (DC coupled per spec)
+# Connect preamp output directly to header AIN pins
+# (The signal goes through the header to ES8388 ADC on digital board)
+
+# =====================================================================
+# OVERDRIVE SECTION — LM13700 OTA with PWM bias control
+# =====================================================================
+
+LM13700(
+    name="OTA",
+    V_POS=VP,
+    V_NEG=VN,
+    # Channel L — OTA 1
+    AMP_BIAS_INPUT_1=od_bias_l,
+    INPUT_POS_1=od_in_l,
+    INPUT_NEG_1=GND,
+    OUTPUT_1=od_out_l,
+    DIODE_BIAS_1=VP,         # Linearizing diodes connected to V+
+    BUFFER_INPUT_1=buf_in_l,
+    BUFFER_OUTPUT_1=SUM_OUT_L,
+    # Channel R — OTA 2
+    AMP_BIAS_INPUT_2=od_bias_r,
+    INPUT_POS_2=od_in_r,
+    INPUT_NEG_2=GND,
+    OUTPUT_2=od_out_r,
+    DIODE_BIAS_2=VP,
+    BUFFER_INPUT_2=buf_in_r,
+    BUFFER_OUTPUT_2=SUM_OUT_R,
+)
+
+# OTA power decoupling
+Capacitor(name="C_OTA_VP", value="100nF", package="0402", P1=VP, P2=GND)
+# anchor: P1 near OTA V_POS pin
+Capacitor(name="C_OTA_VN", value="100nF", package="0402", P1=VN, P2=GND)
+# anchor: P1 near OTA V_NEG pin
+# Extra 10uF on V- per spec to suppress residual negative rail ripple
+Capacitor(name="C_OTA_VN_BULK", value="10uF", package="0805", P1=VN, P2=GND)
+# anchor: P1 near OTA V_NEG pin
+
+# Linearizing diode feedback: OTA output → buffer input
+# (The LM13700 internal linearizing diodes connect OTA output to buffer input)
+Resistor(name="R_LIN_L", value="0", package="0402", P1=od_out_l, P2=buf_in_l)
+# anchor: P1 near OTA OUTPUT_1 pin, P2 near OTA BUFFER_INPUT_1 pin
+Resistor(name="R_LIN_R", value="0", package="0402", P1=od_out_r, P2=buf_in_r)
+# anchor: P1 near OTA OUTPUT_2 pin, P2 near OTA BUFFER_INPUT_2 pin
+
+# DAC signal AC coupling to OTA input (1uF 0603 X7R)
+Capacitor(name="C_OD_IN_L", value="1uF", package="0603", dielectric="X7R", P1=HDR_DAC_L, P2=od_in_l)
+# anchor: P1 near HDR pin 5, P2 near OTA INPUT_POS_1 pin
+Capacitor(name="C_OD_IN_R", value="1uF", package="0603", dielectric="X7R", P1=HDR_DAC_R, P2=od_in_r)
+# anchor: P1 near HDR pin 6, P2 near OTA INPUT_POS_2 pin
+
+# --- PWM → DC conversion (RC low-pass, fc ≈ 1.6kHz) ---
+# PWM from header → 1k + 100nF RC filter → 10k series → I_ABC pin
+Resistor(name="R_RC_L", value="1k", package="0402", P1=HDR_PWM_L, P2=od_ctrl_l)
+# anchor: P1 near HDR pin 9, P2 between
+Capacitor(name="C_RC_L", value="100nF", package="0402", P1=od_ctrl_l, P2=GND)
+# anchor: P1 near R_RC_L P2
+Resistor(name="R_BIAS_L", value="10k", package="0402", P1=od_ctrl_l, P2=od_bias_l)
+# anchor: P1 near C_RC_L, P2 near OTA AMP_BIAS_INPUT_1 pin
+
+Resistor(name="R_RC_R", value="1k", package="0402", P1=HDR_PWM_R, P2=od_ctrl_r)
+# anchor: P1 near HDR pin 10, P2 between
+Capacitor(name="C_RC_R", value="100nF", package="0402", P1=od_ctrl_r, P2=GND)
+# anchor: P1 near R_RC_R P2
+Resistor(name="R_BIAS_R", value="10k", package="0402", P1=od_ctrl_r, P2=od_bias_r)
+# anchor: P1 near C_RC_R, P2 near OTA AMP_BIAS_INPUT_2 pin
+
+# =====================================================================
+# INTERCONNECT HEADER — 2x5, 2.54mm pitch
+# =====================================================================
+# Pin 1: GND, Pin 2: GND, Pin 3: AIN_L, Pin 4: AIN_R,
+# Pin 5: DAC_L, Pin 6: DAC_R, Pin 7: GND, Pin 8: GND,
+# Pin 9: PWM_L, Pin 10: PWM_R
+PinHeader(
+    name="HDR",
+    pins=5,
+    rows=2,
+    mount="THT",
+    P1=GND,
+    P2=GND,
+    P3=preamp_out_l,      # Preamp output goes to header → digital board ADC
+    P4=preamp_out_r,
+    P5=HDR_DAC_L,         # DAC from digital board → overdrive
+    P6=HDR_DAC_R,
+    P7=GND,
+    P8=GND,
+    P9=HDR_PWM_L,         # PWM control from digital board
+    P10=HDR_PWM_R,
+)
+
+# Test point on one overdrive output
+TestPoint(name="TP_OD", variant="Pad_1.0x1.0mm", P1=SUM_OUT_L)

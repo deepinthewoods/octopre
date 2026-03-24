@@ -1,0 +1,48 @@
+"""
+TYPE-C-31-M-12
+
+Auto-generated using `pcb search`.
+"""
+
+mpn = config("mpn", str, optional=True, default="TYPE-C-31-M-12")
+manufacturer = config("manufacturer", str, optional=True, default="Korean Hroparts Elec")
+alternatives = config("alternatives", list, default=[])
+
+Pins = struct(
+    CC1=io("CC1", Net),
+    CC2=io("CC2", Net),
+    DN1=io("DN1", Net),
+    DN2=io("DN2", Net),
+    DP1=io("DP1", Net),
+    DP2=io("DP2", Net),
+    EH=io("EH", Net),
+    GND=io("GND", Net),
+    SBU1=io("SBU1", Net),
+    SBU2=io("SBU2", Net),
+    VBUS=io("VBUS", Net),
+)
+
+Component(
+    name="TYPE-C-31-M-12",
+    mpn=mpn,
+    manufacturer=manufacturer,
+    datasheet=File("TYPE-C-31-M-12.pdf"),
+    symbol=Symbol(library="TYPE-C-31-M-12.kicad_sym"),
+    footprint=File("TYPE-C-31-M-12.kicad_mod"),
+    pins={
+        "CC1": Pins.CC1,
+        "CC2": Pins.CC2,
+        "DN1": Pins.DN1,
+        "DN2": Pins.DN2,
+        "DP1": Pins.DP1,
+        "DP2": Pins.DP2,
+        "EH": Pins.EH,
+        "GND": Pins.GND,
+        "SBU1": Pins.SBU1,
+        "SBU2": Pins.SBU2,
+        "VBUS": Pins.VBUS,
+    },
+    properties={
+        "alternatives": alternatives,
+    },
+)

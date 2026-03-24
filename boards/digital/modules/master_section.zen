@@ -1,0 +1,356 @@
+"""
+Master ESP32-S3 + ES8388 + USB-C + Charger — Digital Board Module
+
+Master ESP32-S3-WROOM-1 (PCB antenna) + ES8388 codec + SC8922 2S charger +
+HY2120-CB battery protection + USB-C + master 2x6 interconnect header.
+One-off module (not replicated).
+"""
+
+# Generic components
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+Led = Module("@stdlib/generics/Led.zen")
+PinHeader = Module("@stdlib/generics/PinHeader.zen")
+TestPoint = Module("@stdlib/generics/TestPoint.zen")
+
+# Specific ICs
+ESP32 = Module("../../../components/Espressif_Systems/ESP32-S3-WROOM-1-N16R8/ESP32-S3-WROOM-1-N16R8.zen")
+ES8388 = Module("../../../components/Everest-semi_Everest_Semiconductor/ES8388/ES8388.zen")
+SC8922 = Module("../../../components/unknown/SC8922QDLR/SC8922QDLR.zen")
+HY2120 = Module("../../../components/HYCON_Tech/HY2120-CB/HY2120-CB.zen")
+FS8205 = Module("../../../components/FUXINSEMI/FS8205A/FS8205A.zen")
+USBC = Module("../../../components/Korean_Hroparts_Elec/TYPE-C-31-M-12/TYPE-C-31-M-12.zen")
+USBLC6 = Module("../../../components/STMicroelectronics/USBLC6-2SC6/USBLC6-2SC6.zen")
+
+# --- Module interface ---
+
+# Power
+VCC_DIG = io("VCC_DIG", Power)       # 3V3_DIG
+VCC_ANA = io("VCC_ANA", Power)       # 3V3_ANA for ES8388 AVDD
+GND = io("GND", Ground)
+
+# Battery
+VBAT = io("VBAT", Power)             # Protected battery voltage
+
+# TDM bus (master drives clocks)
+TDM_BCLK = io("TDM_BCLK", Net)
+TDM_LRCLK = io("TDM_LRCLK", Net)
+TDM_DATA_1 = io("TDM_DATA_1", Net)
+TDM_DATA_2 = io("TDM_DATA_2", Net)
+TDM_DATA_3 = io("TDM_DATA_3", Net)
+TDM_DATA_4 = io("TDM_DATA_4", Net)
+MCLK_OUT = io("MCLK_OUT", Net)       # Master clock output (star routed)
+
+# UART mux interface
+MUX_TX = io("MUX_TX", Net)           # Master UART TX to mux
+MUX_RX = io("MUX_RX", Net)           # Master UART RX from mux
+MUX_A = io("MUX_A", Net)             # Mux select A
+MUX_B = io("MUX_B", Net)             # Mux select B
+
+# Slave control lines (directly from master GPIOs)
+SLAVE_GPIO0_1 = io("SLAVE_GPIO0_1", Net)
+SLAVE_GPIO0_2 = io("SLAVE_GPIO0_2", Net)
+SLAVE_GPIO0_3 = io("SLAVE_GPIO0_3", Net)
+SLAVE_GPIO0_4 = io("SLAVE_GPIO0_4", Net)
+SLAVE_EN_1 = io("SLAVE_EN_1", Net)
+SLAVE_EN_2 = io("SLAVE_EN_2", Net)
+SLAVE_EN_3 = io("SLAVE_EN_3", Net)
+SLAVE_EN_4 = io("SLAVE_EN_4", Net)
+
+# Master header signals (to/from analog board)
+HDR_AIN_L = io("HDR_AIN_L", Net)     # Summed audio from analog board → master ADC
+HDR_AIN_R = io("HDR_AIN_R", Net)
+HDR_DAC_L = io("HDR_DAC_L", Net)     # Master DAC out → analog board line out
+HDR_DAC_R = io("HDR_DAC_R", Net)
+HDR_HP_L = io("HDR_HP_L", Net)       # ES8388 headphone out → analog board
+HDR_HP_R = io("HDR_HP_R", Net)
+HDR_5V_ANA = io("HDR_5V_ANA", Net)   # 5V_ANA from analog board (for 3V3_ANA LDO)
+
+# --- Internal nets ---
+i2s_mclk = Net("M_I2S_MCLK")
+i2s_bclk = Net("M_I2S_BCLK")
+i2s_lrclk = Net("M_I2S_LRCLK")
+i2s_sdin = Net("M_I2S_SDIN")
+i2s_sdout = Net("M_I2S_SDOUT")
+
+es_avdd = Net("M_ES_AVDD")
+es_dvdd = Net("M_ES_DVDD")
+vmid = Net("M_ES_VMID")
+vref = Net("M_ES_VREF")
+adcvref = Net("M_ES_ADCVREF")
+
+usb_dp = Net("USB_DP")
+usb_dn = Net("USB_DN")
+usb_vbus = Net("USB_VBUS")
+usb_cc1 = Net("USB_CC1")
+usb_cc2 = Net("USB_CC2")
+
+# Charger nets
+vsys = Net("VSYS")
+chg_sw = Net("CHG_SW")
+chg_pg = Net("PG_CHG")
+
+# Battery protection nets
+bat_raw_pos = Net("BAT_RAW_POS")
+bat_prot_pos = Net("BAT_PROT_POS")
+
+# JTAG
+jtag_tdi = Net("JTAG_TDI")
+jtag_tdo = Net("JTAG_TDO")
+jtag_tck = Net("JTAG_TCK")
+jtag_tms = Net("JTAG_TMS")
+
+# =====================================================================
+# MASTER ESP32-S3-WROOM-1 (PCB antenna)
+# =====================================================================
+ESP32(
+    name="MCU",
+    P3V3=VCC_DIG,
+    GND=GND,
+    EN=VCC_DIG,          # Master always enabled (with RC delay below)
+    IO0=VCC_DIG,         # Default run mode (pull-up)
+    # Dedicated I2S to master ES8388
+    IO4=i2s_mclk,
+    IO5=i2s_bclk,
+    IO6=i2s_lrclk,
+    IO7=i2s_sdin,
+    IO8=i2s_sdout,
+    # TDM bus (master is clock source)
+    IO9=TDM_BCLK,
+    IO10=TDM_LRCLK,
+    IO11=TDM_DATA_1,
+    IO12=TDM_DATA_2,
+    IO13=TDM_DATA_3,
+    IO14=TDM_DATA_4,
+    IO15=MCLK_OUT,       # Shared MCLK output (star-routed)
+    # UART mux
+    IO16=MUX_TX,
+    IO17=MUX_RX,
+    IO18=MUX_A,
+    IO19=MUX_B,
+    # Slave control
+    IO20=SLAVE_GPIO0_1,
+    IO21=SLAVE_GPIO0_2,
+    IO35=SLAVE_GPIO0_3,
+    IO36=SLAVE_GPIO0_4,
+    IO37=SLAVE_EN_1,
+    IO38=SLAVE_EN_2,
+    IO39=SLAVE_EN_3,
+    IO40=SLAVE_EN_4,
+    # USB native
+    IO41=usb_dp,         # IO19/IO20 are USB on S3, but using JTAG-capable pins
+    IO42=usb_dn,
+    # JTAG
+    IO45=jtag_tdi,
+    IO46=jtag_tdo,
+    IO47=jtag_tck,
+    IO48=jtag_tms,
+    # UART0
+    RXD0=NotConnected(),
+    TXD0=NotConnected(),
+    # Unused
+    IO1=NotConnected(),
+    IO2=NotConnected(),
+    IO3=NotConnected(),
+)
+
+# Master MCU decoupling
+Capacitor(name="C_MCU_BULK", value="10uF", package="0805", P1=VCC_DIG, P2=GND)
+# anchor: P1 near MCU 3V3 pin
+Capacitor(name="C_MCU_DEC", value="100nF", package="0402", P1=VCC_DIG, P2=GND)
+# anchor: P1 near MCU 3V3 pin
+
+# EN pull-up with RC delay
+Resistor(name="R_M_EN", value="10k", package="0402", P1=VCC_DIG, P2=VCC_DIG)
+# anchor: P2 near MCU EN pin
+
+# =====================================================================
+# MASTER ES8388 CODEC
+# =====================================================================
+ES8388(
+    name="CODEC",
+    DVDD=es_dvdd,
+    DGND=GND,
+    MCLK=i2s_mclk,
+    SCLK=i2s_bclk,
+    LRCK=i2s_lrclk,
+    DSDIN=i2s_sdin,
+    ASDOUT=i2s_sdout,
+    CCLK=NotConnected(),
+    CDATA=NotConnected(),
+    CE=VCC_DIG,
+    AVDD=es_avdd,
+    AGND=GND,
+    PVDD=es_avdd,
+    HPVDD=es_avdd,
+    HPGND=GND,
+    VMID=vmid,
+    VREF=vref,
+    ADCVREF=adcvref,
+    LIN1=HDR_AIN_L,      # Summed audio from analog board
+    RIN1=HDR_AIN_R,
+    LIN2=NotConnected(),
+    RIN2=NotConnected(),
+    LOUT1=HDR_DAC_L,     # DAC to analog board line output
+    ROUT1=HDR_DAC_R,
+    LOUT2=HDR_HP_L,      # Headphone amp outputs
+    ROUT2=HDR_HP_R,
+    EP=GND,
+    NC=NotConnected(),
+)
+
+# ES8388 decoupling (same pattern as slave)
+Resistor(name="R_M_DVDD", value="0", package="0402", P1=VCC_DIG, P2=es_dvdd)
+Capacitor(name="C_M_DVDD1", value="10uF", package="0805", P1=es_dvdd, P2=GND)
+Capacitor(name="C_M_DVDD2", value="100nF", package="0402", P1=es_dvdd, P2=GND)
+Resistor(name="R_M_AVDD", value="0", package="0402", P1=VCC_ANA, P2=es_avdd)
+Capacitor(name="C_M_AVDD1", value="10uF", package="0805", P1=es_avdd, P2=GND)
+Capacitor(name="C_M_AVDD2", value="100nF", package="0402", P1=es_avdd, P2=GND)
+Capacitor(name="C_M_PVDD", value="100nF", package="0402", P1=es_avdd, P2=GND)
+Capacitor(name="C_M_HPVDD", value="100nF", package="0402", P1=es_avdd, P2=GND)
+Capacitor(name="C_M_VMID", value="10uF", package="0805", P1=vmid, P2=GND)
+Capacitor(name="C_M_VREF", value="100nF", package="0402", P1=vref, P2=GND)
+Capacitor(name="C_M_ADCVREF", value="100nF", package="0402", P1=adcvref, P2=GND)
+
+# =====================================================================
+# USB-C CONNECTOR + ESD PROTECTION
+# =====================================================================
+USBC(
+    name="USB",
+    VBUS=usb_vbus,
+    DP1=usb_dp,
+    DN1=usb_dn,
+    DP2=usb_dp,          # Tied together (USB 2.0 only)
+    DN2=usb_dn,
+    CC1=usb_cc1,
+    CC2=usb_cc2,
+    GND=GND,
+    SBU1=NotConnected(),
+    SBU2=NotConnected(),
+    EH=GND,              # Shell/shield to GND
+)
+
+# CC pull-downs (5.1k for USB-C sink identification)
+Resistor(name="R_CC1", value="5.1k", package="0402", P1=usb_cc1, P2=GND)
+# anchor: P1 near USB CC1 pin
+Resistor(name="R_CC2", value="5.1k", package="0402", P1=usb_cc2, P2=GND)
+# anchor: P1 near USB CC2 pin
+
+# ESD protection
+USBLC6(
+    name="ESD",
+    VBUS=usb_vbus,
+    I_O1_1=usb_dp,
+    I_O1_2=usb_dp,
+    I_O2_1=usb_dn,
+    I_O2_2=usb_dn,
+    GND=GND,
+)
+
+# =====================================================================
+# SC8922 2S CHARGER + BATTERY PROTECTION
+# =====================================================================
+
+# Battery protection: HY2120-CB + FS8205A between connector and SC8922
+HY2120(
+    name="BPROT",
+    VDD=bat_raw_pos,     # Connected to battery + terminal
+    VSS=GND,
+    OC=bat_prot_pos,     # Charge control gate
+    OD=bat_prot_pos,     # Discharge control gate (shared for FS8205A)
+    CS=GND,              # Current sense (across MOSFETs)
+    VC=bat_raw_pos,      # Cell voltage sense
+)
+
+FS8205(
+    name="QPROT",
+    G1=bat_prot_pos,     # Charge FET gate
+    G2=bat_prot_pos,     # Discharge FET gate
+    S1=GND,              # Source of charge FET
+    S2=VBAT,             # Source of discharge FET → protected VBAT
+    D1_D2=bat_raw_pos,   # Common drain → battery
+)
+
+SC8922(
+    name="CHG",
+    VIN=usb_vbus,
+    VSYS=vsys,
+    VBAT=VBAT,
+    VBATS=VBAT,          # Battery sense
+    SW=chg_sw,
+    PGND=GND,
+    AGND=GND,
+    PG=chg_pg,
+    NTC=GND,             # Short to GND (disable NTC for prototype)
+    CSEL=NotConnected(),             # Leave open for 8.4V (2S) target
+    ICHG=NotConnected(),             # Charge current set resistor below
+    IIN=NotConnected(),              # Input current limit
+    MODE=NotConnected(),
+    BT=NotConnected(),
+    VS1=NotConnected(),
+    VS2=NotConnected(),
+    VS3=NotConnected(),
+    NC=NotConnected(),
+)
+
+# Charge current set: 12k for 1A
+Resistor(name="R_ICHG", value="12k", package="0402", P1=NotConnected(), P2=GND)
+# anchor: P1 near CHG ICHG pin
+
+# Charger decoupling
+Capacitor(name="C_CHG_IN", value="10uF", package="0805", P1=usb_vbus, P2=GND)
+# anchor: P1 near CHG VIN pin
+Capacitor(name="C_CHG_OUT", value="10uF", package="0805", P1=VBAT, P2=GND)
+# anchor: P1 near CHG VBAT pin
+
+# Charge status LED (active low)
+Resistor(name="R_LED_CHG", value="1k", package="0402", P1=VCC_DIG, P2=chg_pg)
+Led(name="LED_CHG", color="green", package="0603", A=chg_pg, K=GND)
+
+# Power LED
+Led(name="LED_PWR", color="green", package="0603", A=VCC_DIG, K=GND)
+
+# =====================================================================
+# MASTER 2x6 INTERCONNECT HEADER
+# =====================================================================
+PinHeader(
+    name="MHDR",
+    pins=6,
+    rows=2,
+    mount="THT",
+    P1=GND,
+    P2=GND,
+    P3=HDR_AIN_L,
+    P4=HDR_AIN_R,
+    P5=HDR_DAC_L,
+    P6=HDR_DAC_R,
+    P7=HDR_HP_L,
+    P8=HDR_HP_R,
+    P9=GND,
+    P10=GND,
+    P11=VBAT,
+    P12=HDR_5V_ANA,
+)
+
+# JTAG debug header (6-pin)
+PinHeader(
+    name="JTAG",
+    pins=6,
+    rows=1,
+    mount="THT",
+    P1=jtag_tdi,
+    P2=jtag_tdo,
+    P3=jtag_tck,
+    P4=jtag_tms,
+    P5=GND,
+    P6=VCC_DIG,
+)
+
+# Test points
+TestPoint(name="TP_VBAT", variant="Pad_1.0x1.0mm", P1=VBAT)
+TestPoint(name="TP_VSYS", variant="Pad_1.0x1.0mm", P1=vsys)
+TestPoint(name="TP_MCLK", variant="Pad_1.0x1.0mm", P1=MCLK_OUT)
+TestPoint(name="TP_BCLK", variant="Pad_1.0x1.0mm", P1=TDM_BCLK)
+TestPoint(name="TP_LRCLK", variant="Pad_1.0x1.0mm", P1=TDM_LRCLK)
+TestPoint(name="TP_USB_DP", variant="Pad_1.0x1.0mm", P1=usb_dp)
+TestPoint(name="TP_USB_DN", variant="Pad_1.0x1.0mm", P1=usb_dn)

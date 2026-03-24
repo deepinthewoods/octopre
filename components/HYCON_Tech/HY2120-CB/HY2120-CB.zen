@@ -1,0 +1,26 @@
+"""
+HY2120-CB
+
+Auto-generated using `pcb search`.
+"""
+
+mpn = config("mpn", str, optional=True, default="HY2120-CB")
+manufacturer = config("manufacturer", str, optional=True, default="HYCON Tech")
+alternatives = config("alternatives", list, default=[])
+
+Pins = struct(
+    CS=io("CS", Net), OC=io("OC", Net), OD=io("OD", Net), VC=io("VC", Net), VDD=io("VDD", Net), VSS=io("VSS", Net)
+)
+
+Component(
+    name="HY2120-CB",
+    mpn=mpn,
+    manufacturer=manufacturer,
+    datasheet=File("HY2120-CB.pdf"),
+    symbol=Symbol(library="HY2120-CB.kicad_sym"),
+    footprint=File("HY2120-CB.kicad_mod"),
+    pins={"CS": Pins.CS, "OC": Pins.OC, "OD": Pins.OD, "VC": Pins.VC, "VDD": Pins.VDD, "VSS": Pins.VSS},
+    properties={
+        "alternatives": alternatives,
+    },
+)

@@ -1,0 +1,243 @@
+"""
+Analog Board — 8-Channel Audio DSP System
+
+Top-level board file. Instantiates:
+  - 1x power supply corner (VBAT → ±3.0V bipolar supply)
+  - 4x slave analog channel pairs (preamp + overdrive, replicated)
+  - 1x master analog section (summing amp + line out + HP out)
+  - 2x mic bias (CH1, CH2)
+  - Audio input pads (8 channels)
+
+70x55mm, 6-layer, ENIG finish.
+"""
+
+load("@stdlib/units.zen", "Voltage")
+
+# Modules
+PowerCorner = Module("./modules/power_corner.zen")
+SlaveAnalog = Module("./modules/slave_analog.zen")
+MasterAnalog = Module("./modules/master_analog.zen")
+MicBias = Module("./modules/mic_bias.zen")
+
+# Generic components
+PinHeader = Module("@stdlib/generics/PinHeader.zen")
+
+# =====================================================================
+# GLOBAL NETS
+# =====================================================================
+
+# Power rails
+vbat = Power("VBAT", voltage=Voltage("7.4V"))
+v5_ana = Power("5V_ANA", voltage=Voltage("5.0V"))
+vp3 = Power("VP3", voltage=Voltage("3.0V"))
+vn3 = Power("VN3", voltage=Voltage("-3.0V"))
+gnd = Ground("GND")
+
+# Audio input nets (from user-facing pads)
+ain_1l = Net("AIN_1L")
+ain_1r = Net("AIN_1R")
+ain_2l = Net("AIN_2L")
+ain_2r = Net("AIN_2R")
+ain_3l = Net("AIN_3L")
+ain_3r = Net("AIN_3R")
+ain_4l = Net("AIN_4L")
+ain_4r = Net("AIN_4R")
+ain_5l = Net("AIN_5L")
+ain_5r = Net("AIN_5R")
+ain_6l = Net("AIN_6L")
+ain_6r = Net("AIN_6R")
+ain_7l = Net("AIN_7L")
+ain_7r = Net("AIN_7R")
+ain_8l = Net("AIN_8L")
+ain_8r = Net("AIN_8R")
+
+# Header analog signals (per slave pair)
+s1_ain_l = Net("S1_AIN_L")
+s1_ain_r = Net("S1_AIN_R")
+s1_dac_l = Net("S1_DAC_L")
+s1_dac_r = Net("S1_DAC_R")
+s1_pwm_l = Net("S1_PWM_L")
+s1_pwm_r = Net("S1_PWM_R")
+
+s2_ain_l = Net("S2_AIN_L")
+s2_ain_r = Net("S2_AIN_R")
+s2_dac_l = Net("S2_DAC_L")
+s2_dac_r = Net("S2_DAC_R")
+s2_pwm_l = Net("S2_PWM_L")
+s2_pwm_r = Net("S2_PWM_R")
+
+s3_ain_l = Net("S3_AIN_L")
+s3_ain_r = Net("S3_AIN_R")
+s3_dac_l = Net("S3_DAC_L")
+s3_dac_r = Net("S3_DAC_R")
+s3_pwm_l = Net("S3_PWM_L")
+s3_pwm_r = Net("S3_PWM_R")
+
+s4_ain_l = Net("S4_AIN_L")
+s4_ain_r = Net("S4_AIN_R")
+s4_dac_l = Net("S4_DAC_L")
+s4_dac_r = Net("S4_DAC_R")
+s4_pwm_l = Net("S4_PWM_L")
+s4_pwm_r = Net("S4_PWM_R")
+
+# Summing bus
+sum_l_1 = Net("SUM_L_1")
+sum_r_1 = Net("SUM_R_1")
+sum_l_2 = Net("SUM_L_2")
+sum_r_2 = Net("SUM_R_2")
+sum_l_3 = Net("SUM_L_3")
+sum_r_3 = Net("SUM_R_3")
+sum_l_4 = Net("SUM_L_4")
+sum_r_4 = Net("SUM_R_4")
+
+# =====================================================================
+# POWER SUPPLY CORNER
+# =====================================================================
+PowerCorner(
+    name="PSU",
+    VBAT=vbat,
+    GND=gnd,
+    V5_ANA=v5_ana,
+    VP3=vp3,
+    VN3=vn3,
+)
+
+# =====================================================================
+# SLAVE ANALOG PAIRS (x4) — preamp + overdrive
+# =====================================================================
+
+# Slave 1: CH1 + CH2
+SlaveAnalog(
+    name="CH12",
+    idx=1,
+    VP=vp3,
+    VN=vn3,
+    GND=gnd,
+    HDR_AIN_L=s1_ain_l,
+    HDR_AIN_R=s1_ain_r,
+    HDR_DAC_L=s1_dac_l,
+    HDR_DAC_R=s1_dac_r,
+    HDR_PWM_L=s1_pwm_l,
+    HDR_PWM_R=s1_pwm_r,
+    AUDIO_IN_L=ain_1l,
+    AUDIO_IN_R=ain_2r,
+    SUM_OUT_L=sum_l_1,
+    SUM_OUT_R=sum_r_1,
+)
+
+# Slave 2: CH3 + CH4
+SlaveAnalog(
+    name="CH34",
+    idx=2,
+    VP=vp3,
+    VN=vn3,
+    GND=gnd,
+    HDR_AIN_L=s2_ain_l,
+    HDR_AIN_R=s2_ain_r,
+    HDR_DAC_L=s2_dac_l,
+    HDR_DAC_R=s2_dac_r,
+    HDR_PWM_L=s2_pwm_l,
+    HDR_PWM_R=s2_pwm_r,
+    AUDIO_IN_L=ain_3l,
+    AUDIO_IN_R=ain_4r,
+    SUM_OUT_L=sum_l_2,
+    SUM_OUT_R=sum_r_2,
+)
+
+# Slave 3: CH5 + CH6
+SlaveAnalog(
+    name="CH56",
+    idx=3,
+    VP=vp3,
+    VN=vn3,
+    GND=gnd,
+    HDR_AIN_L=s3_ain_l,
+    HDR_AIN_R=s3_ain_r,
+    HDR_DAC_L=s3_dac_l,
+    HDR_DAC_R=s3_dac_r,
+    HDR_PWM_L=s3_pwm_l,
+    HDR_PWM_R=s3_pwm_r,
+    AUDIO_IN_L=ain_5l,
+    AUDIO_IN_R=ain_6r,
+    SUM_OUT_L=sum_l_3,
+    SUM_OUT_R=sum_r_3,
+)
+
+# Slave 4: CH7 + CH8
+SlaveAnalog(
+    name="CH78",
+    idx=4,
+    VP=vp3,
+    VN=vn3,
+    GND=gnd,
+    HDR_AIN_L=s4_ain_l,
+    HDR_AIN_R=s4_ain_r,
+    HDR_DAC_L=s4_dac_l,
+    HDR_DAC_R=s4_dac_r,
+    HDR_PWM_L=s4_pwm_l,
+    HDR_PWM_R=s4_pwm_r,
+    AUDIO_IN_L=ain_7l,
+    AUDIO_IN_R=ain_8r,
+    SUM_OUT_L=sum_l_4,
+    SUM_OUT_R=sum_r_4,
+)
+
+# =====================================================================
+# MASTER ANALOG SECTION
+# =====================================================================
+MasterAnalog(
+    name="MSTR",
+    VP=vp3,
+    VN=vn3,
+    GND=gnd,
+    VBAT=vbat,
+    V5_ANA=v5_ana,
+    SUM_L_1=sum_l_1,
+    SUM_L_2=sum_l_2,
+    SUM_L_3=sum_l_3,
+    SUM_L_4=sum_l_4,
+    SUM_R_1=sum_r_1,
+    SUM_R_2=sum_r_2,
+    SUM_R_3=sum_r_3,
+    SUM_R_4=sum_r_4,
+)
+
+# =====================================================================
+# ELECTRET MIC BIAS (CH1 and CH2 only)
+# =====================================================================
+MicBias(name="MIC1", VP=vp3, GND=gnd, PREAMP_IN=ain_1l)
+MicBias(name="MIC2", VP=vp3, GND=gnd, PREAMP_IN=ain_2r)
+
+# =====================================================================
+# AUDIO INPUT PADS — 8 stereo channels (2.54mm through-hole)
+# =====================================================================
+# Each channel pair shares a ground pin
+# CH1+CH2 (with mic bias labels)
+PinHeader(name="IN_CH12", pins=6, rows=1, mount="THT",
+    P1=ain_1l, P2=ain_2r, P3=gnd,
+    P4=ain_1l, P5=ain_2r, P6=gnd)
+
+# CH3+CH4
+PinHeader(name="IN_CH34", pins=6, rows=1, mount="THT",
+    P1=ain_3l, P2=ain_4r, P3=gnd,
+    P4=ain_3l, P5=ain_4r, P6=gnd)
+
+# CH5+CH6
+PinHeader(name="IN_CH56", pins=6, rows=1, mount="THT",
+    P1=ain_5l, P2=ain_6r, P3=gnd,
+    P4=ain_5l, P5=ain_6r, P6=gnd)
+
+# CH7+CH8
+PinHeader(name="IN_CH78", pins=6, rows=1, mount="THT",
+    P1=ain_7l, P2=ain_8r, P3=gnd,
+    P4=ain_7l, P5=ain_8r, P6=gnd)
+
+# =====================================================================
+# BOARD CONFIGURATION
+# =====================================================================
+Board(
+    name="analog",
+    layers=6,
+    layout_path="layout/analog",
+    copper_finish="ENIG",
+)

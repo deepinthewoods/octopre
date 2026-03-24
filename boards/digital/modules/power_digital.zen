@@ -1,0 +1,132 @@
+"""
+Digital Board Power — TPS62140 Buck (3V3_DIG) + TPS7A2033 LDO (3V3_ANA)
+
+TPS62140: VBAT → 3.3V digital supply for all ESP32s and ES8388 DVDD.
+TPS7A2033: 5V_ANA (from analog board via master header) → 3.3V ultra-low-noise for ES8388 AVDD.
+"""
+
+load("@stdlib/units.zen", "Voltage")
+
+# Generic components
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+Inductor = Module("@stdlib/generics/Inductor.zen")
+FerriteBead = Module("@stdlib/generics/FerriteBead.zen")
+TestPoint = Module("@stdlib/generics/TestPoint.zen")
+
+# Specific ICs
+TPS62140 = Module("../../../components/Texas_Instruments/TPS62140RGTR/TPS62140RGTR.zen")
+TPS7A2033 = Module("../../../components/Texas_Instruments/TPS7A2033PDBVR/TPS7A2033PDBVR.zen")
+
+# --- Module interface ---
+
+VBAT = io("VBAT", Power)             # Battery input
+GND = io("GND", Ground)
+
+# Outputs
+VCC_DIG = io("VCC_DIG", Power)       # 3V3_DIG
+VCC_ANA = io("VCC_ANA", Power)       # 3V3_ANA for ES8388 AVDD
+
+# Input from analog board
+V5_ANA_IN = io("V5_ANA_IN", Net)     # 5V_ANA from master header pin 12
+
+# --- Internal nets ---
+buck_sw = Net("DIG_BUCK_SW")
+buck_fb = Net("DIG_BUCK_FB")
+buck_ss = Net("DIG_BUCK_SS")
+buck_pg = Net("DIG_BUCK_PG")
+ana_ldo_en = Net("ANA_LDO_EN")
+
+# LC filter between TPS7A2033 and ES8388 AVDD
+v3v3_ana_filtered = Net("3V3_ANA_FILT")
+
+# =====================================================================
+# TPS62140 Buck — VBAT → 3V3_DIG (2A)
+# =====================================================================
+
+TPS62140(
+    name="BUCK",
+    PVIN=VBAT,
+    AVIN=VBAT,
+    EN=VBAT,             # Always enabled
+    SW=buck_sw,
+    FB=buck_fb,
+    VOS=VCC_DIG,
+    DEF=GND,             # Adjustable mode
+    FSW=GND,             # Default frequency (auto mode OK for digital)
+    SS_TR=buck_ss,
+    PG=buck_pg,
+    PGND=GND,
+    AGND=GND,
+    EP=GND,
+)
+
+# Input decoupling
+Capacitor(name="C_DIN1", value="10uF", package="0805", dielectric="X7R", P1=VBAT, P2=GND)
+# anchor: P1 near BUCK PVIN pin
+Capacitor(name="C_DIN2", value="100nF", package="0402", dielectric="X7R", P1=VBAT, P2=GND)
+# anchor: P1 near BUCK PVIN pin
+
+# Inductor
+Inductor(name="L_DIG", value="2.2uH", package="1210", P1=buck_sw, P2=VCC_DIG)
+# anchor: P1 near BUCK SW pin
+
+# Output decoupling
+Capacitor(name="C_DOUT1", value="22uF", package="0805", dielectric="X7R", P1=VCC_DIG, P2=GND)
+# anchor: P1 near BUCK VOS pin
+Capacitor(name="C_DOUT2", value="22uF", package="0805", dielectric="X7R", P1=VCC_DIG, P2=GND)
+# anchor: P1 near BUCK VOS pin
+Capacitor(name="C_DOUT3", value="100nF", package="0402", dielectric="X7R", P1=VCC_DIG, P2=GND)
+# anchor: P1 near BUCK VOS pin
+
+# Feedback divider for 3.3V: Vout = 0.8 * (1 + R_top/R_bot)
+# R_top=200k, R_bot=64k → Vout = 0.8 * 4.125 = 3.3V
+Resistor(name="R_DFB_TOP", value="200k", package="0402", P1=VCC_DIG, P2=buck_fb)
+# anchor: P2 near BUCK FB pin
+Resistor(name="R_DFB_BOT", value="64k", package="0402", P1=buck_fb, P2=GND)
+# anchor: P1 near BUCK FB pin
+
+# Soft-start
+Capacitor(name="C_DSS", value="10nF", package="0402", P1=buck_ss, P2=GND)
+# anchor: P1 near BUCK SS_TR pin
+
+# Test points
+TestPoint(name="TP_3V3_DIG", variant="Pad_1.0x1.0mm", P1=VCC_DIG)
+
+# =====================================================================
+# TPS7A2033 LDO — 5V_ANA → 3V3_ANA (300mA, 10uVrms noise)
+# =====================================================================
+
+TPS7A2033(
+    name="ALDO",
+    IN=V5_ANA_IN,
+    OUT=v3v3_ana_filtered,
+    EN=V5_ANA_IN,        # Auto-enable
+    GND=GND,
+    NC=NotConnected(),
+)
+
+# Input decoupling
+Capacitor(name="C_AIN1", value="10uF", package="0805", dielectric="X7R", P1=V5_ANA_IN, P2=GND)
+# anchor: P1 near ALDO IN pin
+Capacitor(name="C_AIN2", value="100nF", package="0402", dielectric="X7R", P1=V5_ANA_IN, P2=GND)
+# anchor: P1 near ALDO IN pin
+
+# Output decoupling
+Capacitor(name="C_AOUT1", value="10uF", package="0805", dielectric="X7R", P1=v3v3_ana_filtered, P2=GND)
+# anchor: P1 near ALDO OUT pin
+Capacitor(name="C_AOUT2", value="100nF", package="0402", dielectric="X7R", P1=v3v3_ana_filtered, P2=GND)
+# anchor: P1 near ALDO OUT pin
+
+# LC filter on output (10uH inductor + 10uF cap)
+Inductor(name="L_ANA", value="10uH", package="0805", P1=v3v3_ana_filtered, P2=VCC_ANA)
+# anchor: P1 near ALDO OUT pin
+Capacitor(name="C_ANA_FILT", value="10uF", package="0805", dielectric="X7R", P1=VCC_ANA, P2=GND)
+# anchor: P1 near L_ANA P2
+
+# Ferrite bead isolation between 3V3_ANA and 3V3_DIG power pours
+FerriteBead(name="FB_ANA", value="600ohm", package="0402", P1=VCC_ANA, P2=VCC_DIG)
+# anchor: between ALDO and BUCK
+
+# Test point
+TestPoint(name="TP_3V3_ANA", variant="Pad_1.0x1.0mm", P1=VCC_ANA)

@@ -1,0 +1,243 @@
+"""
+Slave ESP32-S3 + ES8388 Pair — Digital Board Module
+
+One slave channel pair: ESP32-S3-WROOM-1U + ES8388 codec + 2x5 interconnect header.
+Instantiate 4 times (U2+U7, U3+U8, U4+U9, U5+U10) in digital.zen.
+Dedicated I2S bus between ESP32 and ES8388, plus TDM data output to master.
+"""
+
+# Generic components
+Resistor = Module("@stdlib/generics/Resistor.zen")
+Capacitor = Module("@stdlib/generics/Capacitor.zen")
+PinHeader = Module("@stdlib/generics/PinHeader.zen")
+TestPoint = Module("@stdlib/generics/TestPoint.zen")
+
+# Specific ICs
+ESP32 = Module("../../../components/Espressif_Systems/ESP32-S3-WROOM-1U-N16R8/ESP32-S3-WROOM-1U-N16R8.zen")
+ES8388 = Module("../../../components/Everest-semi_Everest_Semiconductor/ES8388/ES8388.zen")
+
+# --- Module interface ---
+
+# Power
+VCC_DIG = io("VCC_DIG", Power)      # 3V3_DIG
+VCC_ANA = io("VCC_ANA", Power)      # 3V3_ANA for ES8388 AVDD
+GND = io("GND", Ground)
+
+# I2S from master (TDM bus connections)
+TDM_BCLK = io("TDM_BCLK", Net)       # TDM bit clock from master
+TDM_LRCLK = io("TDM_LRCLK", Net)     # TDM frame sync from master
+TDM_DATA_OUT = io("TDM_DATA_OUT", Net) # This slave's TDM data to master
+MCLK_IN = io("MCLK_IN", Net)          # Master clock from master (star routed)
+
+# UART mux connections (from master via mux)
+UART_TX = io("UART_TX", Net)          # TX from master mux to this slave RX
+UART_RX = io("UART_RX", Net)          # RX from this slave TX to master mux
+SLAVE_GPIO0 = io("SLAVE_GPIO0", Net)  # Boot mode control from master
+SLAVE_EN = io("SLAVE_EN", Net)        # Reset control from master
+
+# Header analog signals (to/from analog board)
+HDR_AIN_L = io("HDR_AIN_L", Net)      # Preamp output L from analog board
+HDR_AIN_R = io("HDR_AIN_R", Net)      # Preamp output R from analog board
+HDR_DAC_L = io("HDR_DAC_L", Net)      # ES8388 DAC L to analog board overdrive
+HDR_DAC_R = io("HDR_DAC_R", Net)      # ES8388 DAC R to analog board overdrive
+HDR_PWM_L = io("HDR_PWM_L", Net)      # PWM overdrive control L
+HDR_PWM_R = io("HDR_PWM_R", Net)      # PWM overdrive control R
+
+# Configuration
+idx = config("idx", int)              # Slave index 1-4 (for naming)
+
+# --- Internal nets ---
+i2s_mclk = Net("I2S_MCLK")
+i2s_bclk = Net("I2S_BCLK")
+i2s_lrclk = Net("I2S_LRCLK")
+i2s_sdin = Net("I2S_SDIN")      # ESP32 → ES8388 (to codec ADC)
+i2s_sdout = Net("I2S_SDOUT")    # ES8388 → ESP32 (from codec DAC)
+
+es_avdd = Net("ES_AVDD")         # ES8388 analog supply (local filtered)
+es_dvdd = Net("ES_DVDD")         # ES8388 digital supply
+vmid = Net("ES_VMID")            # ES8388 VMID reference
+vref = Net("ES_VREF")            # ES8388 VREF
+adcvref = Net("ES_ADCVREF")      # ES8388 ADC reference
+
+pwm_l_internal = Net("PWM_L_INT")
+pwm_r_internal = Net("PWM_R_INT")
+
+# --- ESP32-S3-WROOM-1U ---
+# Pin assignments for slave ESP32-S3:
+#   I2S dedicated codec bus: IO4=MCLK_OUT, IO5=BCLK, IO6=LRCLK, IO7=SDIN, IO8=SDOUT
+#   TDM bus: IO9=TDM_BCLK, IO10=TDM_LRCLK, IO11=TDM_DATA, IO12=MCLK_IN
+#   PWM outputs: IO13=PWM_L, IO14=PWM_R
+#   UART: RXD0=UART_RX, TXD0=UART_TX
+#   GPIO0=boot, EN=reset
+ESP32(
+    name="ESP32",
+    P3V3=VCC_DIG,
+    GND=GND,
+    EN=SLAVE_EN,
+    IO0=SLAVE_GPIO0,
+    # Dedicated I2S to ES8388
+    IO4=i2s_mclk,
+    IO5=i2s_bclk,
+    IO6=i2s_lrclk,
+    IO7=i2s_sdin,
+    IO8=i2s_sdout,
+    # TDM bus to master
+    IO9=TDM_BCLK,
+    IO10=TDM_LRCLK,
+    IO11=TDM_DATA_OUT,
+    IO12=MCLK_IN,
+    # PWM overdrive control
+    IO13=pwm_l_internal,
+    IO14=pwm_r_internal,
+    # UART
+    RXD0=UART_TX,
+    TXD0=UART_RX,
+    # Unused pins
+    IO1=NotConnected(),
+    IO2=NotConnected(),
+    IO3=NotConnected(),
+    IO15=NotConnected(),
+    IO16=NotConnected(),
+    IO17=NotConnected(),
+    IO18=NotConnected(),
+    IO19=NotConnected(),
+    IO20=NotConnected(),
+    IO21=NotConnected(),
+    IO35=NotConnected(),
+    IO36=NotConnected(),
+    IO37=NotConnected(),
+    IO38=NotConnected(),
+    IO39=NotConnected(),
+    IO40=NotConnected(),
+    IO41=NotConnected(),
+    IO42=NotConnected(),
+    IO45=NotConnected(),
+    IO46=NotConnected(),
+    IO47=NotConnected(),
+    IO48=NotConnected(),
+)
+
+# ESP32 bulk decoupling
+Capacitor(name="C_ESP_BULK", value="10uF", package="0805", P1=VCC_DIG, P2=GND)
+# anchor: P1 near ESP32 3V3 pin
+Capacitor(name="C_ESP_DEC", value="100nF", package="0402", P1=VCC_DIG, P2=GND)
+# anchor: P1 near ESP32 3V3 pin
+
+# EN pull-up + RC delay for clean boot
+Resistor(name="R_EN", value="10k", package="0402", P1=VCC_DIG, P2=SLAVE_EN)
+# anchor: P2 near ESP32 EN pin
+Capacitor(name="C_EN", value="100nF", package="0402", P1=SLAVE_EN, P2=GND)
+# anchor: P1 near ESP32 EN pin
+
+# GPIO0 pull-up (default run mode, pulled low for bootloader)
+Resistor(name="R_GPIO0", value="10k", package="0402", P1=VCC_DIG, P2=SLAVE_GPIO0)
+# anchor: P2 near ESP32 IO0 pin
+
+# --- ES8388 Codec ---
+ES8388(
+    name="CODEC",
+    # Digital
+    DVDD=es_dvdd,
+    DGND=GND,
+    MCLK=i2s_mclk,
+    SCLK=i2s_bclk,
+    LRCK=i2s_lrclk,
+    DSDIN=i2s_sdin,
+    ASDOUT=i2s_sdout,
+    # I2C control (directly from paired ESP32)
+    CCLK=NotConnected(),     # Not using I2C — ES8388 configured via I2S register writes
+    CDATA=NotConnected(),
+    CE=VCC_DIG,  # Chip enable active high
+    # Analog
+    AVDD=es_avdd,
+    AGND=GND,
+    PVDD=es_avdd,
+    HPVDD=es_avdd,
+    HPGND=GND,
+    VMID=vmid,
+    VREF=vref,
+    ADCVREF=adcvref,
+    # Analog inputs (from preamp via header)
+    LIN1=HDR_AIN_L,
+    RIN1=HDR_AIN_R,
+    LIN2=NotConnected(),
+    RIN2=NotConnected(),
+    # DAC outputs (to overdrive via header)
+    LOUT1=HDR_DAC_L,
+    ROUT1=HDR_DAC_R,
+    LOUT2=NotConnected(),
+    ROUT2=NotConnected(),
+    # Exposed pad
+    EP=GND,
+    NC=NotConnected(),
+)
+
+# ES8388 digital supply (from 3V3_DIG — DVDD accepts 1.8-3.3V)
+Capacitor(name="C_DVDD1", value="10uF", package="0805", P1=es_dvdd, P2=GND)
+# anchor: P1 near CODEC DVDD pin
+Capacitor(name="C_DVDD2", value="100nF", package="0402", P1=es_dvdd, P2=GND)
+# anchor: P1 near CODEC DVDD pin
+
+# Connect DVDD to 3V3_DIG
+Resistor(name="R_DVDD", value="0", package="0402", P1=VCC_DIG, P2=es_dvdd)
+# anchor: P1 near CODEC DVDD pin
+
+# ES8388 analog supply decoupling (AVDD from 3V3_ANA)
+Capacitor(name="C_AVDD1", value="10uF", package="0805", P1=es_avdd, P2=GND)
+# anchor: P1 near CODEC AVDD pin
+Capacitor(name="C_AVDD2", value="100nF", package="0402", P1=es_avdd, P2=GND)
+# anchor: P1 near CODEC AVDD pin
+
+# Connect AVDD to 3V3_ANA
+Resistor(name="R_AVDD", value="0", package="0402", P1=VCC_ANA, P2=es_avdd)
+# anchor: P1 near CODEC AVDD pin
+
+# PVDD (same rail as AVDD for slaves — no headphone amp used)
+Capacitor(name="C_PVDD", value="100nF", package="0402", P1=es_avdd, P2=GND)
+# anchor: P1 near CODEC PVDD pin
+
+# HPVDD decoupling (not used on slaves but still connected)
+Capacitor(name="C_HPVDD", value="100nF", package="0402", P1=es_avdd, P2=GND)
+# anchor: P1 near CODEC HPVDD pin
+
+# VMID reference cap
+Capacitor(name="C_VMID", value="10uF", package="0805", P1=vmid, P2=GND)
+# anchor: P1 near CODEC VMID pin
+
+# VREF decoupling
+Capacitor(name="C_VREF", value="100nF", package="0402", P1=vref, P2=GND)
+# anchor: P1 near CODEC VREF pin
+
+# ADCVREF decoupling
+Capacitor(name="C_ADCVREF", value="100nF", package="0402", P1=adcvref, P2=GND)
+# anchor: P1 near CODEC ADCVREF pin
+
+# --- PWM series resistors at header (33 ohm damping) ---
+Resistor(name="R_PWM_L", value="33", package="0402", P1=pwm_l_internal, P2=HDR_PWM_L)
+# anchor: P1 near ESP32 IO13 pin, P2 near HDR pin 9
+Resistor(name="R_PWM_R", value="33", package="0402", P1=pwm_r_internal, P2=HDR_PWM_R)
+# anchor: P1 near ESP32 IO14 pin, P2 near HDR pin 10
+
+# --- Slave 2x5 Interconnect Header ---
+# Pin 1: GND, Pin 2: GND, Pin 3: AIN_L, Pin 4: AIN_R,
+# Pin 5: DAC_L, Pin 6: DAC_R, Pin 7: GND, Pin 8: GND,
+# Pin 9: PWM_L, Pin 10: PWM_R
+PinHeader(
+    name="HDR",
+    pins=5,
+    rows=2,
+    mount="THT",
+    P1=GND,
+    P2=GND,
+    P3=HDR_AIN_L,
+    P4=HDR_AIN_R,
+    P5=HDR_DAC_L,
+    P6=HDR_DAC_R,
+    P7=GND,
+    P8=GND,
+    P9=HDR_PWM_L,
+    P10=HDR_PWM_R,
+)
+
+# --- Test point on MCLK for this pair ---
+TestPoint(name="TP_MCLK", variant="Pad_1.0x1.0mm", P1=i2s_mclk)

@@ -1,0 +1,16 @@
+[board]
+name = "digital"
+path = "digital.zen"
+
+[dependencies]
+"github.com/user/8chdsp/components/Espressif_Systems/ESP32-S3-WROOM-1-N16R8" = "0.1.0"
+"github.com/user/8chdsp/components/Espressif_Systems/ESP32-S3-WROOM-1U-N16R8" = "0.1.0"
+"github.com/user/8chdsp/components/Everest-semi_Everest_Semiconductor/ES8388" = "0.1.0"
+"github.com/user/8chdsp/components/FUXINSEMI/FS8205A" = "0.1.0"
+"github.com/user/8chdsp/components/HYCON_Tech/HY2120-CB" = "0.1.0"
+"github.com/user/8chdsp/components/Korean_Hroparts_Elec/TYPE-C-31-M-12" = "0.1.0"
+"github.com/user/8chdsp/components/STMicroelectronics/USBLC6-2SC6" = "0.1.0"
+"github.com/user/8chdsp/components/Texas_Instruments/TPS62140RGTR" = "0.1.0"
+"github.com/user/8chdsp/components/Texas_Instruments/TPS7A2033PDBVR" = "0.1.0"
+"github.com/user/8chdsp/components/Toshiba/74HC4052D" = "0.1.0"
+"github.com/user/8chdsp/components/unknown/SC8922QDLR" = "0.1.0"
