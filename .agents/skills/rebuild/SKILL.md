@@ -37,6 +37,7 @@ Run this after editing `spec.md` to push changes through the design pipeline.
 
 5. **If only passives changed (or no changes): continue**
    - Run `pcb layout` to regenerate `layout.kicad_pcb` for affected boards
+   - Do NOT run `make_initial.py` — the existing `layout_initial.kicad_pcb` has the user's manually-placed IC positions and must be preserved
    - Update `layout_guidance.md` if needed
    - Run `python layout.py` for both boards to place/re-place passives
    - Report what was placed/moved
@@ -45,5 +46,6 @@ Run this after editing `spec.md` to push changes through the design pipeline.
 
 - NEVER move manually-placed components
 - ALWAYS preserve existing component positions in the KiCad PCB file
+- Only regenerate `layout_initial.kicad_pcb` when large components are added or removed. This file contains the user's manual IC placements — overwriting it destroys that work.
 - Only update the KiCad PCB layout when components are added or removed
 - Passive anchor annotations in .zen files are the source of truth for layout.py

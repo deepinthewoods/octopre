@@ -25,6 +25,7 @@ spec.md → .zen files → pcb layout → layout.kicad_pcb
 Re-run the pipeline. Key rules:
 - **Always regenerate** .zen files from the updated spec
 - **Only update** the KiCad PCB layout file if components were added or removed
+- **Only regenerate `layout_initial.kicad_pcb`** when large components (ICs, connectors, headers) are added or removed. This file contains the user's manual placements — never overwrite it otherwise.
 - **Always preserve** manually-placed component positions — never move them
 - **Re-run layout.py** to place any new passives or adjust for removed ones
 
@@ -40,8 +41,13 @@ Each passive component gets an annotation indicating which pad should be closest
 ### layout.py Behavior
 
 - Reads full `layout.kicad_pcb` (all components from pcb layout)
-- Reads `layout_initial.kicad_pcb` for manually-placed IC positions
-- Applies IC positions to non-passive components in the full PCB
+- Reads `layout_initial.kicad_pcb` for manually-placed IC positions and layers
+- Applies IC positions and layers to non-passive components in the full PCB
+- Supports double-sided placement (digital board):
+  - Passives are placed on the same side (F.Cu/B.Cu) as their anchor IC
+  - If no space on the anchor's side, falls back to the opposite side
+  - Layer flipping swaps all F.*/B.* layer references in the footprint block
+  - Overlap checking is per-layer (components on different sides don't collide)
 - For each passive:
   - Finds anchor pad and target pin location via net connectivity
   - Searches outward from anchor point on 1mm grid
