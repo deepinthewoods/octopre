@@ -63,39 +63,45 @@ pwm_l_internal = Net("PWM_L_INT")
 pwm_r_internal = Net("PWM_R_INT")
 
 # --- ESP32-S3-WROOM-1U ---
-# Pin assignments for slave ESP32-S3:
-#   I2S dedicated codec bus: IO4=MCLK_OUT, IO5=BCLK, IO6=LRCLK, IO7=SDIN, IO8=SDOUT
-#   TDM bus: IO9=TDM_BCLK, IO10=TDM_LRCLK, IO11=TDM_DATA, IO12=MCLK_IN
-#   PWM outputs: IO13=PWM_L, IO14=PWM_R
-#   UART: RXD0=UART_RX, TXD0=UART_TX
-#   GPIO0=boot, EN=reset
+# Pin assignments optimised for layout with ES8388 rotated 90° CW to the right.
+# RIGHT side → I2S to ES8388 (short straight traces, no crossings):
+#   IO1=MCLK, IO2=BCLK, IO42=SDIN, IO41=LRCLK, IO40=SDOUT
+# LEFT side → TDM bus to master (routes across board):
+#   IO4=TDM_BCLK, IO5=TDM_LRCLK, IO6=TDM_DATA, IO7=MCLK_IN
+# BOTTOM side → PWM to header:
+#   IO13=PWM_L, IO14=PWM_R
+# UART on right side (between I2S groups): RXD0, TXD0
+# Control: IO0=boot, EN=reset
 ESP32(
     name="ESP32",
     P3V3=VCC_DIG,
     GND=GND,
     EN=SLAVE_EN,
     IO0=SLAVE_GPIO0,
-    # Dedicated I2S to ES8388
-    IO4=i2s_mclk,
-    IO5=i2s_bclk,
-    IO6=i2s_lrclk,
-    IO7=i2s_sdin,
-    IO8=i2s_sdout,
-    # TDM bus to master
-    IO9=TDM_BCLK,
-    IO10=TDM_LRCLK,
-    IO11=TDM_DATA_OUT,
-    IO12=MCLK_IN,
-    # PWM overdrive control
+    # RIGHT SIDE — I2S to ES8388 (top to bottom: MCLK, BCLK, SDIN, LRCLK, SDOUT)
+    IO1=i2s_mclk,
+    IO2=i2s_bclk,
+    IO42=i2s_sdin,
+    IO41=i2s_lrclk,
+    IO40=i2s_sdout,
+    # LEFT SIDE — TDM bus to master
+    IO4=TDM_BCLK,
+    IO5=TDM_LRCLK,
+    IO6=TDM_DATA_OUT,
+    IO7=MCLK_IN,
+    # BOTTOM SIDE — PWM overdrive control
     IO13=pwm_l_internal,
     IO14=pwm_r_internal,
-    # UART
+    # RIGHT SIDE — UART (between I2S groups)
     RXD0=UART_TX,
     TXD0=UART_RX,
     # Unused pins
-    IO1=NotConnected(),
-    IO2=NotConnected(),
     IO3=NotConnected(),
+    IO8=NotConnected(),
+    IO9=NotConnected(),
+    IO10=NotConnected(),
+    IO11=NotConnected(),
+    IO12=NotConnected(),
     IO15=NotConnected(),
     IO16=NotConnected(),
     IO17=NotConnected(),
@@ -108,9 +114,6 @@ ESP32(
     IO37=NotConnected(),
     IO38=NotConnected(),
     IO39=NotConnected(),
-    IO40=NotConnected(),
-    IO41=NotConnected(),
-    IO42=NotConnected(),
     IO45=NotConnected(),
     IO46=NotConnected(),
     IO47=NotConnected(),
